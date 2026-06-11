@@ -33,4 +33,7 @@ class Board
         void printBoard();
         void loadFEN(std::string fen);
 
+        // getters:
+        Piece getPiece(Square s);  
+        Color getSideToMove();
 };

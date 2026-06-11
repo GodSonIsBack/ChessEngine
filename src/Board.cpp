@@ -80,6 +80,17 @@ void Board::loadFEN(std::string fen)
     sideToMove = (pos.activeColor == 'w') ? WHITE : BLACK;
 }
 
+// ----------GETTERS----------
+Piece Board::getPiece(Square s)
+{
+    return board[s];
+}
+
+Color Board::getSideToMove()
+{
+    return sideToMove;
+}
+
 // ----------HELPER FUNCTIONS----------
 Piece Board::charToPiece(char c)
 {
