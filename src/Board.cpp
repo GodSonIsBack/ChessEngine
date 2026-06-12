@@ -91,9 +91,14 @@ Color Board::getSideToMove()
     return sideToMove;
 }
 
-Square getEnPassantSquare()
+Square Board::getEnPassantSquare()
 {
     return enPassantSquare;
+}
+
+int Board::getCastLingRight()
+{
+    return castLingRight;
 }
 
 // ----------HELPER FUNCTIONS----------

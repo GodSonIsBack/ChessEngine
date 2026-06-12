@@ -32,9 +32,10 @@ class Board
         void setPiece(Square s, Piece p);
         void printBoard();
         void loadFEN(std::string fen);
-
+        
         // getters:
         Piece getPiece(Square s);  
         Color getSideToMove();
         Square getEnPassantSquare();
+        int getCastLingRight();
 };
