@@ -91,6 +91,11 @@ Color Board::getSideToMove()
     return sideToMove;
 }
 
+Square getEnPassantSquare()
+{
+    return enPassantSquare;
+}
+
 // ----------HELPER FUNCTIONS----------
 Piece Board::charToPiece(char c)
 {

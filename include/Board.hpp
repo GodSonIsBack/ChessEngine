@@ -36,4 +36,5 @@ class Board
         // getters:
         Piece getPiece(Square s);  
         Color getSideToMove();
+        Square getEnPassantSquare();
 };

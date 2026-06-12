@@ -14,7 +14,8 @@ class MoveGenerator
         void genRookMoves(Board &board, std::vector<Move> &moves);
         void genBishopMoves(Board &board, std::vector<Move> &moves);
         void genQueenMoves(Board &board, std::vector<Move> &moves);
+        void genPawnMoves(Board &board, std::vector<Move> &moves);
         
     public: 
-        std::vector<Move> generateMoves(Board &board);
+        std::vector<Move> generateAllMoves(Board &board);
 };
