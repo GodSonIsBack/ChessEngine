@@ -10,7 +10,7 @@ long long MoveGenerator::perft(int depth, Board &board)
     long long nodes = 0;
 
     // Generate all pseudo-legal moves
-    std::vector<Move> moveList = generateAllMoves(board);
+    std::vector<Move> moveList = generateLegalMoves(board);
 
     for (const auto& move : moveList)
     {
@@ -27,7 +27,7 @@ void MoveGenerator::perftDivide(int depth, Board &board)
     if (depth == 0) return;
 
     long long totalNodes = 0;
-    std::vector<Move> moveList = generateAllMoves(board);
+    std::vector<Move> moveList = generateLegalMoves(board);
 
     std::cout << std::endl<<"--- PERFT DIVIDE-Depth: " << depth << "---" << std::endl;
 

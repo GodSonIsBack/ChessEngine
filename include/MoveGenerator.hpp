@@ -18,7 +18,7 @@ class MoveGenerator
         
     public: 
         std::vector<Move> generateAllMoves(Board &board);
-
+        std::vector<Move> generateLegalMoves(Board &board);
         //Performance Testing:
         long long perft(int depth, Board &board);
         void perftDivide(int depth, Board &board);

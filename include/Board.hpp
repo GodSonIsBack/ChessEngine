@@ -29,6 +29,10 @@ class Board
             StateInfo history[2048]; // Stack
             int histPtr; // Pointer to top of stack
 
+        // King Cordinates:
+            Square King_W;
+            Square King_B;
+        
         // helper functions:
             Piece charToPiece(char c);
             char pieceToChar(Piece p);
@@ -43,9 +47,12 @@ class Board
         void makeMove(Move move);
         void unmakeMove(Move move);
 
+        bool isSquareAttacked(Square sq,Color attackingSide);
+
         // getters:
             Piece getPiece(Square s);  
             Color getSideToMove();
             Square getEnPassantSquare();
+            Square getKingSq(Color playingSide);
             int getCastLingRight();
 };

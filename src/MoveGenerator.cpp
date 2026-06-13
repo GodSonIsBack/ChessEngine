@@ -85,42 +85,47 @@ void MoveGenerator::genKingMoves(Board &board, std::vector<Move> &moves)
             moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
         }
 
-        if(c == WHITE && sq == E1)
-        {
-            // White Kingside
-            // if king is on E1 and F1 and G1 are empty
-            if((board.getCastLingRight() & 1) && 
-                board.getPiece(F1) == EMPTY && board.getPiece(G1) == EMPTY)
+        // CASLTING:
+            if(c == WHITE && sq == E1 && !board.isSquareAttacked(E1, BLACK))
             {
-                moves.push_back(Move(E1, G1, EMPTY, EMPTY, true));
+                // White Kingside
+                // if king is on E1 and F1 and G1 are empty and check-free
+                if((board.getCastLingRight() & 1) && 
+                    board.getPiece(F1) == EMPTY && board.getPiece(G1) == EMPTY &&
+                    !board.isSquareAttacked(F1,BLACK) && !board.isSquareAttacked(G1, BLACK))
+                {
+                    moves.push_back(Move(E1, G1, EMPTY, EMPTY, true));
+                }
+                
+                // White Queenside
+                // if king is on E1 and B1, C1 and D1 are empty and check-free
+                if((board.getCastLingRight() & 2) && board.getPiece(B1) == EMPTY && 
+                    board.getPiece(C1) == EMPTY && board.getPiece(D1) == EMPTY &&
+                    !board.isSquareAttacked(C1, BLACK) && !board.isSquareAttacked(D1, BLACK))
+                {
+                    moves.push_back(Move(E1, C1, EMPTY, EMPTY, true));
+                }
             }
-            
-            // White Queenside
-            // if king is on E1 and B1, C1 and D1 are empty
-            if((board.getCastLingRight() & 2) && board.getPiece(B1) == EMPTY && 
-                board.getPiece(C1) == EMPTY && board.getPiece(D1) == EMPTY)
+            else if (c == BLACK && sq == E8 && !board.isSquareAttacked(E8, WHITE))
             {
-                moves.push_back(Move(E1, C1, EMPTY, EMPTY, true));
+                // Black Kingside
+                // if king is on E8 and F8 and G8 are empty and check-free
+                if((board.getCastLingRight() & 4) && 
+                    board.getPiece(F8) == EMPTY && board.getPiece(G8) == EMPTY && 
+                    !board.isSquareAttacked(F8,WHITE) && !board.isSquareAttacked(G8, WHITE))
+                {
+                    moves.push_back(Move(E8, G8, EMPTY, EMPTY, true));
+                }
+                
+                // Black Queenside
+                // if king is on E8 and B8, C8 and D8 are empty and check-free
+                if((board.getCastLingRight() & 8) && board.getPiece(C8) == EMPTY && 
+                    board.getPiece(B8) == EMPTY && board.getPiece(D8) == EMPTY &&
+                    !board.isSquareAttacked(C8, WHITE) && !board.isSquareAttacked(D8, WHITE))
+                {
+                    moves.push_back(Move(E8, C8, EMPTY, EMPTY, true));
+                }
             }
-        }
-        else if (c == BLACK && sq == E8)
-        {
-            // Black Kingside
-            // if king is on E8 and F8 and G8 are empty
-            if((board.getCastLingRight() & 4) && board.getPiece(F8) == EMPTY && 
-                board.getPiece(G8) == EMPTY)
-            {
-                moves.push_back(Move(E8, G8, EMPTY, EMPTY, true));
-            }
-            
-            // Black Queenside
-            // if king is on E8 and B8, C8 and D8 are empty
-            if((board.getCastLingRight() & 8) && board.getPiece(C8) == EMPTY && 
-                board.getPiece(B8) == EMPTY && board.getPiece(D8) == EMPTY)
-            {
-                moves.push_back(Move(E8, C8, EMPTY, EMPTY, true));
-            }
-        }
     }
 }
 
@@ -401,7 +406,6 @@ void MoveGenerator::genPawnMoves(Board &board, std::vector<Move> &moves)
     }
 }
 
-
 std::vector<Move> MoveGenerator::generateAllMoves(Board &board)
 {
     std::vector<Move> moves;
@@ -416,4 +420,28 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board &board)
     genPawnMoves(board,moves);
 
     return moves;
+}
+
+std::vector<Move> MoveGenerator::generateLegalMoves(Board &board)
+{
+    std::vector<Move> legalMoves;
+
+    std::vector<Move> pseudoLegal = generateAllMoves(board);
+    for(auto move : pseudoLegal)
+    {
+        Color playingSide = board.getSideToMove();
+        Color attackingSide = (Color)(playingSide ^ 1);
+
+        board.makeMove(move);
+
+        //get king Cordinates and look for checks
+        Square kingSq = board.getKingSq(playingSide);
+        bool isAttacked = board.isSquareAttacked(kingSq, attackingSide);
+
+        if(!isAttacked) legalMoves.push_back(move);
+
+        board.unmakeMove(move);
+    }
+
+    return legalMoves;
 }

@@ -69,6 +69,11 @@ Board::Board():
                 else
                 {
                     Square sq = (Square)(rank * 8 + file);
+
+                    //Store cordinates of Kings:
+                    if(c == 'K') King_W = sq;
+                    if(c == 'k') King_B = sq;
+                    
                     setPiece(sq, charToPiece(c));
                     file++;
                 }
@@ -179,6 +184,8 @@ Board::Board():
         // Piece Movement:
             board[to] = board[from];
             board[from] = EMPTY;
+            if(movedPiece == W_KING) King_W = to;
+            if(movedPiece == B_KING) King_B = to;
         
         // Pawn Promotion:
             if(move.promotionPiece != EMPTY) board[to] = move.promotionPiece;
@@ -192,6 +199,7 @@ Board::Board():
         Square from = move.from;
         Square to = move.to;
         Piece capturedPiece = move.capturedPiece;
+        Piece movedPiece = board[to];
 
         // Restoring prev state:
             histPtr--;
@@ -220,6 +228,8 @@ Board::Board():
         // Undo Piece Movement:
             board[from] = board[to];
             board[to] = EMPTY;
+            if(movedPiece == W_KING) King_W = from;
+            if(movedPiece == B_KING) King_B = from;
         
         // Restore Captured Piece:
             if(!move.isEnPassant)
@@ -237,6 +247,120 @@ Board::Board():
             }
     }
 
+    bool Board::isSquareAttacked(Square sq,Color attackingSide)
+    {
+        int file = sq % 8;
+        int rank = sq / 8;
+
+        //Knight Attack:
+            Piece targetKnight = (attackingSide == WHITE) ? W_KNIGHT : B_KNIGHT;
+            int offsets[] = {15, 17, -17, -15, 6, 10, -6, -10};
+
+            for(auto offset : offsets)
+            {
+                int tempSq = sq + offset;
+
+                // Wrap-around:
+                if ((offset == -10 || offset == 6) && file < 2) continue;
+                if ((offset == -17 || offset == 15) && file < 1) continue;
+                if ((offset == -15 || offset == 17) && file > 6) continue;
+                if ((offset == -6 || offset == 10) && file > 5) continue;
+
+                // Out of Bounds:
+                if(tempSq < 0 || tempSq > 63) continue;
+
+                if(board[tempSq] == targetKnight) return true;
+            }
+        
+        //Pawn Attack:
+            if (attackingSide == WHITE)
+            {
+                if (file != 0 && sq - 9 >= 0 && board[sq - 9] == W_PAWN) return true;
+                if (file != 7 && sq - 7 >= 0 && board[sq - 7] == W_PAWN) return true;
+            }
+            else
+            {
+                if (file != 0 && sq + 7 <= 63 && board[sq + 7] == B_PAWN) return true;
+                if (file != 7 && sq + 9 <= 63 && board[sq + 9] == B_PAWN) return true;
+            }
+        
+        //Sliding Pieces:
+            // Diagonal Attacks:
+            int diagOffsets[] = {7, 9, -7, -9};
+            Piece enemyBishop = (attackingSide == WHITE) ? W_BISHOP : B_BISHOP;
+            Piece enemyQueen  = (attackingSide == WHITE) ? W_QUEEN : B_QUEEN;
+
+            for (int offset : diagOffsets) 
+            {                
+                int tempSq = sq;
+                while (true) 
+                {
+                    int file = tempSq % 8;
+                    
+                    // Wrap Around
+                    if ((offset == 7 || offset == -9) && file == 0) break;
+                    if ((offset == 9 || offset == -7) && file == 7) break;
+
+                    tempSq += offset;
+                    
+                    // Out of Bounds
+                    if (tempSq < 0 || tempSq > 63) break;
+
+                    Piece hitPiece = board[tempSq];
+                    if (hitPiece != EMPTY) 
+                    {
+                        if (hitPiece == enemyBishop || hitPiece == enemyQueen) return true;
+                        break; 
+                    }
+                }
+            }
+
+            // Straight Attacks:
+            int straightOffsets[] = {8, -8, 1, -1};
+            Piece enemyRook = (attackingSide == WHITE) ? W_ROOK : B_ROOK;
+
+            for (int offset : straightOffsets) 
+            {
+                int tempSq = sq;
+                while (true) 
+                {
+                    int file = tempSq % 8;
+                    
+                    // Wrap Around
+                    if (offset == -1 && file == 0) break;
+                    if (offset == 1 && file == 7) break;
+
+                    tempSq += offset;
+                    
+                    // Out of Bounds
+                    if (tempSq < 0 || tempSq > 63) break;
+
+                    Piece hitPiece = board[tempSq];
+                    if (hitPiece != EMPTY) 
+                    {
+                        if (hitPiece == enemyRook || hitPiece == enemyQueen) return true;
+                        break; 
+                    }
+                }
+            }
+        
+        //King Attack:
+            int kingOffsets[]={1, -1, 8, -8, 7, -7, 9, -9};
+            Piece enemyKing = (attackingSide == WHITE) ? W_KING : B_KING;
+            for (int offset : kingOffsets) 
+            {
+                // Wrap around checks
+                if (file == 0 && (offset == -1 || offset == -9 || offset == 7)) continue;
+                if (file == 7 && (offset == 1 || offset == -7 || offset == 9)) continue;
+
+                int tempSq = sq + offset;
+                if (tempSq < 0 || tempSq > 63) continue;
+
+                if (board[tempSq] == enemyKing) return true;
+            }
+
+        return false; // Square is Safe
+    }
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)
     {
@@ -256,6 +380,11 @@ Board::Board():
     int Board::getCastLingRight()
     {
         return castLingRight;
+    }
+
+    Square Board::getKingSq(Color playingSide)
+    {
+        return (playingSide == WHITE) ? King_W : King_B;
     }
 
 // ----------HELPER FUNCTIONS----------
