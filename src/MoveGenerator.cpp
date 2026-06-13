@@ -335,10 +335,9 @@ void MoveGenerator::genPawnMoves(Board &board, std::vector<Move> &moves)
                 // ---EN PASSANT---
                 else if ((Square)targetSq == board.getEnPassantSquare())
                 {
-                    // Move to empty quare but capture black pawn
-                    Move epMove((Square)sq, (Square)targetSq, B_PAWN);
-                    epMove.isEnPassant = true;
-                    moves.push_back(epMove);
+                    moves.push_back(
+                        Move((Square)sq, (Square)targetSq, B_PAWN, EMPTY, false, true)
+                    );
                 }
             }
         }
