@@ -8,7 +8,7 @@ struct StateInfo
 {
     int castLingRight;
     Square enPassantSquare;
-}
+};
 
 class Board
 {
@@ -34,7 +34,7 @@ class Board
             char pieceToChar(Piece p);
 
     public:
-    
+
         Board();
         void setPiece(Square s, Piece p);
         void printBoard();

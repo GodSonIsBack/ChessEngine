@@ -8,7 +8,8 @@
 Board::Board(): 
     sideToMove(WHITE),
     castLingRight(0),
-    enPassantSquare(NO_SQ)
+    enPassantSquare(NO_SQ),
+    histPtr(0)
     {
         loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
@@ -186,7 +187,7 @@ Board::Board():
             sideToMove = (Color)(sideToMove ^ 1);
     }
 
-    void unmakeMove(Move move)
+    void Board::unmakeMove(Move move)
     {
         Square from = move.from;
         Square to = move.to;
