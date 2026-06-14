@@ -49,6 +49,8 @@ class Board
 
         bool isSquareAttacked(Square sq,Color attackingSide);
 
+        int evaluate();
+        
         // getters:
             Piece getPiece(Square s);  
             Color getSideToMove();

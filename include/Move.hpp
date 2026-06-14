@@ -3,7 +3,14 @@
 
 struct Move
 {
-    Move() = default;
+    Move() : 
+        from(NO_SQ), 
+        to(NO_SQ), 
+        capturedPiece(EMPTY), 
+        promotionPiece(EMPTY), 
+        isCastling(false), 
+        isEnPassant(false) 
+    {}
 
     Move(Square sq, Square targetSq, Piece targetPiece, 
         Piece promo = EMPTY,bool castling = false, bool enPassant = false):

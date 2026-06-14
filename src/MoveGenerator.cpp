@@ -1,4 +1,5 @@
 #include <vector>
+#include <algorithm>
 
 #include "../include/MoveGenerator.hpp"
 #include "../include/Board.hpp"
@@ -444,4 +445,69 @@ std::vector<Move> MoveGenerator::generateLegalMoves(Board &board)
     }
 
     return legalMoves;
+}
+// bool isMaximizing : isn't needed cuz evaluate() already returns maximum score relative to whose turn it is 
+// This is the NegaMax structure:
+int MoveGenerator::minimax(Board &board, int depth)
+{
+    if(depth == 0) return board.evaluate();
+
+    //Get all Possible moves at current state:
+    std::vector<Move> legalMoves = generateLegalMoves(board);
+    if(legalMoves.empty())
+    { 
+        Color playingSide = board.getSideToMove();
+        Color attackingSide = (Color)(playingSide ^ 1);
+
+        // If CheckMated return a terrible score
+        if(board.isSquareAttacked(board.getKingSq(playingSide), attackingSide)) 
+            return -999999;
+        
+        return 0; // Stalemate
+    }
+    
+    int bestScore = -999999;
+
+    for(auto move : legalMoves)
+    {
+        board.makeMove(move);
+
+        // Why negative: the returned score from the minimax will be relative to the oppsing side
+        int score = -minimax(board, depth-1);
+        // For ex: if it's white turn and we do minimax(board, depth-1) and this returns us +10
+        // The +10 is relative to black that means black is in advantage at that position
+        // to make it relative to our playing side just negate it
+
+        board.unmakeMove(move);
+
+        bestScore = std::max(bestScore,score);
+    }
+
+    return bestScore;
+}
+
+Move MoveGenerator::findBestMove(Board &board, int depth)
+{
+    //Get all Possible moves at current state:
+    std::vector<Move> legalMoves = generateLegalMoves(board);
+
+    if(legalMoves.empty()) return Move();
+
+    Move bestMove = legalMoves[0];
+    int bestScore = -999999;
+
+    for(auto move : legalMoves)
+    {
+        board.makeMove(move);
+        int score = -minimax(board, depth-1);
+        board.unmakeMove(move);
+
+        if(score > bestScore)
+        {
+            bestScore = score;
+            bestMove = move;
+        }
+    }
+
+    return bestMove;
 }

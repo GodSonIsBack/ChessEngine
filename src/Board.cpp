@@ -22,14 +22,19 @@ Board::Board():
 
     void Board::printBoard()
     {
+        std::cout<<std::endl;
         for (int rank = 7; rank >= 0; rank--)
         {
+            std::cout<<rank+1<<" | ";
             for (int file = 0; file < 8; file++)
             {
                 std::cout << pieceToChar(board[rank * 8 + file]) << " ";
             }
             std::cout<<std::endl;
         }
+        std::cout<<"    ---------------"<<std::endl;
+        std::cout<<"    a b c d e f g h"<<std::endl;
+        std::cout<<std::endl;
     }
 
     void Board::loadFEN(std::string fen)
@@ -360,6 +365,35 @@ Board::Board():
             }
 
         return false; // Square is Safe
+    }
+
+    int Board::evaluate()
+    {
+        int score=0;
+        for(int sq=0;sq < 64;sq++)
+        {
+            Piece currPiece = board[sq];
+            if(currPiece == EMPTY) continue;
+
+            switch(currPiece)
+            {
+                case W_PAWN: score += PAWN + PawnTable[sq]; break;
+                case B_PAWN: score -= PAWN + PawnTable[sq ^ 56]; break;
+
+                case W_BISHOP: score += BISHOP + BishopTable[sq]; break;
+                case B_BISHOP: score -= BISHOP + BishopTable[sq ^ 56]; break;
+
+                case W_ROOK: score += ROOK + RookTable[sq]; break;
+                case B_ROOK: score -= ROOK + RookTable[sq ^ 56]; break;
+
+                case W_QUEEN: score += QUEEN + QueenTable[sq]; break;
+                case B_QUEEN: score -= QUEEN + QueenTable[sq ^ 56]; break;
+
+                case W_KNIGHT: score += KNIGHT + KnightTable[sq]; break;
+                case B_KNIGHT: score -= KNIGHT + KnightTable[sq ^ 56]; break;
+            }
+        }
+        return score;
     }
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)
