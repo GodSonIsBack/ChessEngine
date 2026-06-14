@@ -391,9 +391,12 @@ Board::Board():
 
                 case W_KNIGHT: score += KNIGHT + KnightTable[sq]; break;
                 case B_KNIGHT: score -= KNIGHT + KnightTable[sq ^ 56]; break;
+
+                case W_KING: score += KingTable[sq]; break;
+                case B_KING: score -= KingTable[sq ^ 56]; break;
             }
         }
-        return score;
+        return (sideToMove == WHITE) ? score : -score;
     }
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)

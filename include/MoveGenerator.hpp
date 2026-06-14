@@ -25,6 +25,6 @@ class MoveGenerator
         void perftDivide(int depth, Board &board);
 
         // Search:
-        int minimax(Board &board, int depth);
-        Move findBestMove(Board &board, int depth);
+        int minimax(Board &board, int depth, int alpha, int beta);
+        Move findBestMove(Board &board, int depth, std::vector<Move>& legalMoves);
 };

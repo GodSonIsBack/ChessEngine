@@ -30,7 +30,7 @@ Piece charToPiece(char c)
         }
     }
 
-Move parseUserMove(std::string moveStr, std::vector<Move> legalMoves)
+Move parseUserMove(std::string moveStr, std::vector<Move> &legalMoves)
 {
     if(moveStr.length() < 4) return Move();
 
@@ -103,7 +103,7 @@ int main()
         {
             std::cout << "Engine is thinking...\n";
 
-            Move aiMove = generator.findBestMove(board, 4);
+            Move aiMove = generator.findBestMove(board, 6, legalMoves);
 
             std::cout << "Engine plays: " 
                       << SqtoString(aiMove.from) 
