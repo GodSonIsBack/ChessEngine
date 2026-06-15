@@ -9,7 +9,8 @@ struct Move
         capturedPiece(EMPTY), 
         promotionPiece(EMPTY), 
         isCastling(false), 
-        isEnPassant(false) 
+        isEnPassant(false),
+        score(0)
     {}
 
     Move(Square sq, Square targetSq, Piece targetPiece, 
@@ -19,7 +20,8 @@ struct Move
         capturedPiece(targetPiece),
         promotionPiece(promo),
         isCastling(castling),
-        isEnPassant(enPassant)
+        isEnPassant(enPassant),
+        score(0)
     {}
 
     //base information
@@ -35,4 +37,7 @@ struct Move
     // special moves
     bool isCastling;
     bool isEnPassant;
+
+    //Move Ordering:
+    int score;
 };

@@ -8,6 +8,7 @@ struct StateInfo
 {
     int castLingRight;
     Square enPassantSquare;
+    int currentEval;
 };
 
 class Board
@@ -33,9 +34,13 @@ class Board
             Square King_W;
             Square King_B;
         
+        // Evaluation and Search:
+            int currentEval;
+
         // helper functions:
             Piece charToPiece(char c);
             char pieceToChar(Piece p);
+            int getValueAndPST(Piece pieceType, Square sq);
 
     public:
 
@@ -57,4 +62,5 @@ class Board
             Square getEnPassantSquare();
             Square getKingSq(Color playingSide);
             int getCastLingRight();
+            int getCurrentEval();
 };

@@ -446,6 +446,37 @@ std::vector<Move> MoveGenerator::generateLegalMoves(Board &board)
 
     return legalMoves;
 }
+
+int MoveGenerator::getPieceValue(Piece PieceType)
+{
+    switch(PieceType)
+    {
+        case W_PAWN:   case B_PAWN:   return PAWN;
+        case W_KNIGHT: case B_KNIGHT: return KNIGHT;
+        case W_BISHOP: case B_BISHOP: return BISHOP;
+        case W_ROOK:   case B_ROOK:   return ROOK;
+        case W_QUEEN:  case B_QUEEN:  return QUEEN;
+        default: return 0;  
+    }
+}
+
+int MoveGenerator::scoreMove(Move move,Board &board)
+{
+    int score = 0;
+    
+    //MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+    if(move.capturedPiece != EMPTY){
+        int victimValue = getPieceValue(move.capturedPiece);
+        int attackerValue = getPieceValue(board.getPiece(move.from));
+
+        score += victimValue * 10 - attackerValue;
+    }
+
+    if(move.promotionPiece != EMPTY)
+        score += getPieceValue(move.promotionPiece) * 10;
+
+    return score;
+}
 // bool isMaximizing : isn't needed cuz evaluate() already returns maximum score relative to whose turn it is 
 // This is the NegaMax structure:
 int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
@@ -454,6 +485,16 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
 
     //Get all Possible moves at current state:
     std::vector<Move> legalMoves = generateLegalMoves(board);
+
+    //Scoring and Sorting Moves:
+    for(auto &move : legalMoves) 
+        move.score = scoreMove(move, board);
+
+    sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
+    {
+        return move1.score > move2.score;
+    });
+
     if(legalMoves.empty())
     { 
         Color playingSide = board.getSideToMove();
@@ -493,6 +534,15 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
 Move MoveGenerator::findBestMove(Board &board, int depth, std::vector<Move>& legalMoves)
 {
     if(legalMoves.empty()) return Move();
+
+    //Scoring and Sorting Moves:
+    for(auto &move : legalMoves) 
+        move.score = scoreMove(move, board);
+
+    sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
+    {
+        return move1.score > move2.score;
+    });
 
     Move bestMove = legalMoves[0];
     int bestScore = -999999;

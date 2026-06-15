@@ -6,6 +6,7 @@
 #include <cctype>
 
 Board::Board(): 
+    currentEval(0),
     sideToMove(WHITE),
     castLingRight(0),
     enPassantSquare(NO_SQ),
@@ -115,6 +116,14 @@ Board::Board():
             int enp_rank = pos.enPassantSquare[1] - '1';
             enPassantSquare = (Square)(enp_rank * 8 + enp_file);
         }
+
+        //Initialize CurrentEval
+        currentEval=0;
+        for(int sq=0;sq < 64;sq++)
+        {
+            Piece pieceType = board[sq];
+            currentEval += getValueAndPST(pieceType, (Square) sq);
+        }
     }
 
     void Board::makeMove(Move move)
@@ -126,7 +135,15 @@ Board::Board():
         // Snapshot current Board State:
             history[histPtr].castLingRight = castLingRight;
             history[histPtr].enPassantSquare = enPassantSquare;
+            history[histPtr].currentEval = currentEval;
             histPtr++;
+
+        // Handle Captures (Remove the captured piece's score)
+        if (move.capturedPiece != EMPTY) {
+            Square capSq = to;
+            if (move.isEnPassant) capSq = (Square)((sideToMove == WHITE) ? to - 8 : to + 8);
+            currentEval -= getValueAndPST(move.capturedPiece, capSq);
+        }
 
         // CastlingRight Update:
             static const int castlingRightsArray[64] = {
@@ -152,18 +169,30 @@ Board::Board():
                         switch(to)
                         {
                             case G1: 
-                                board[F1] = board[H1]; board[H1] = EMPTY; break;
+                                board[F1] = board[H1]; board[H1] = EMPTY; 
+                                currentEval -= getValueAndPST(W_ROOK, H1); 
+                                currentEval += getValueAndPST(W_ROOK, F1);
+                                break;
                             case C1:
-                                board[D1] = board[A1]; board[A1] = EMPTY; break;
+                                board[D1] = board[A1]; board[A1] = EMPTY; 
+                                currentEval -= getValueAndPST(W_ROOK, A1); 
+                                currentEval += getValueAndPST(W_ROOK, D1);
+                                break;
                         }
                         break;
                     case B_KING:
                         switch(to)
                         {
                             case G8: 
-                                board[F8] = board[H8]; board[H8] = EMPTY; break;
+                                board[F8] = board[H8]; board[H8] = EMPTY; 
+                                currentEval -= getValueAndPST(B_ROOK, H8);
+                                currentEval += getValueAndPST(B_ROOK, F8);
+                                break;
                             case C8:
-                                board[D8] = board[A8]; board[A8] = EMPTY; break;
+                                board[D8] = board[A8]; board[A8] = EMPTY; 
+                                currentEval -= getValueAndPST(B_ROOK, A8);
+                                currentEval += getValueAndPST(B_ROOK, D8);
+                                break;
                         }
                         break;
                 } 
@@ -189,11 +218,20 @@ Board::Board():
         // Piece Movement:
             board[to] = board[from];
             board[from] = EMPTY;
+
             if(movedPiece == W_KING) King_W = to;
             if(movedPiece == B_KING) King_B = to;
+
+            currentEval -= getValueAndPST(movedPiece, from);
+            currentEval += getValueAndPST(movedPiece, to);
         
         // Pawn Promotion:
-            if(move.promotionPiece != EMPTY) board[to] = move.promotionPiece;
+            if(move.promotionPiece != EMPTY) 
+            {
+                board[to] = move.promotionPiece;
+                currentEval -= getValueAndPST(movedPiece, to); //remove the pawn
+                currentEval += getValueAndPST(move.promotionPiece, to); //add the promoted piece
+            }
 
         // Change the turn:
             sideToMove = (Color)(sideToMove ^ 1);
@@ -210,6 +248,7 @@ Board::Board():
             histPtr--;
             castLingRight = history[histPtr].castLingRight;
             enPassantSquare = history[histPtr].enPassantSquare;
+            currentEval = history[histPtr].currentEval;
 
         // Undo turn:
             sideToMove = (Color)(sideToMove ^ 1);
@@ -369,34 +408,7 @@ Board::Board():
 
     int Board::evaluate()
     {
-        int score=0;
-        for(int sq=0;sq < 64;sq++)
-        {
-            Piece currPiece = board[sq];
-            if(currPiece == EMPTY) continue;
-
-            switch(currPiece)
-            {
-                case W_PAWN: score += PAWN + PawnTable[sq]; break;
-                case B_PAWN: score -= PAWN + PawnTable[sq ^ 56]; break;
-
-                case W_BISHOP: score += BISHOP + BishopTable[sq]; break;
-                case B_BISHOP: score -= BISHOP + BishopTable[sq ^ 56]; break;
-
-                case W_ROOK: score += ROOK + RookTable[sq]; break;
-                case B_ROOK: score -= ROOK + RookTable[sq ^ 56]; break;
-
-                case W_QUEEN: score += QUEEN + QueenTable[sq]; break;
-                case B_QUEEN: score -= QUEEN + QueenTable[sq ^ 56]; break;
-
-                case W_KNIGHT: score += KNIGHT + KnightTable[sq]; break;
-                case B_KNIGHT: score -= KNIGHT + KnightTable[sq ^ 56]; break;
-
-                case W_KING: score += KingTable[sq]; break;
-                case B_KING: score -= KingTable[sq ^ 56]; break;
-            }
-        }
-        return (sideToMove == WHITE) ? score : -score;
+        return (sideToMove == WHITE) ? currentEval : -currentEval;
     }
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)
@@ -449,4 +461,35 @@ Board::Board():
     {
         const std::string pieceChars=".PNBRQKpnbrqk";
         return pieceChars[p];
+    }
+
+    int Board::getValueAndPST(Piece pieceType, Square sq)
+    {
+        int val = 0;
+        int pst = 0;
+        
+        switch(pieceType)
+        {
+            case W_PAWN: val = PAWN; pst = PawnTable[sq]; break;
+            case B_PAWN: val = -PAWN; pst = -PawnTable[sq ^ 56]; break;
+
+            case W_BISHOP: val = BISHOP; pst = BishopTable[sq]; break;
+            case B_BISHOP: val = -BISHOP; pst = -BishopTable[sq ^ 56]; break;
+
+            case W_ROOK: val = ROOK; pst = RookTable[sq]; break;
+            case B_ROOK: val = -ROOK; pst = -RookTable[sq ^ 56]; break;
+
+            case W_QUEEN: val = QUEEN; pst = QueenTable[sq]; break;
+            case B_QUEEN: val = -QUEEN; pst = -QueenTable[sq ^ 56]; break;
+
+            case W_KNIGHT: val = KNIGHT; pst = KnightTable[sq]; break;
+            case B_KNIGHT: val = -KNIGHT; pst = -KnightTable[sq ^ 56]; break;
+
+            case W_KING: pst = KingTable[sq]; break;
+            case B_KING: pst = -KingTable[sq ^ 56]; break;
+
+            default: break;
+        }
+
+        return val + pst;
     }

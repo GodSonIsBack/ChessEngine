@@ -15,6 +15,9 @@ class MoveGenerator
         void genPawnMoves(Board &board, std::vector<Move> &moves);
         void genRookMoves(Board &board, std::vector<Move> &moves);
         void genKnightMoves(Board &board, std::vector<Move> &moves);
+
+        int getPieceValue(Piece PieceType);
+        int scoreMove(Move move,Board &board);
         
     public: 
         std::vector<Move> generateAllMoves(Board &board);
