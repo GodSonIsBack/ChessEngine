@@ -5,6 +5,7 @@
 #include "../include/Board.hpp"
 #include "../include/Move.hpp"
 #include "../include/Definitions.hpp"
+#include "../include/TranspositionTable.hpp"
 
 void MoveGenerator::genKnightMoves(Board &board, std::vector<Move> &moves)
 {
@@ -483,12 +484,26 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
 {
     if(depth == 0) return board.evaluate();
 
+    int originalAlpha = alpha; //save original alpha for later
+    int ttScore = 0;
+    Move ttMove;
+
+    //if we find this board in table return score strored:
+    if(TT.probeTable(board.getCurrentHash(), ttScore, depth, ttMove, alpha, beta))
+        return ttScore;
+
     //Get all Possible moves at current state:
     std::vector<Move> legalMoves = generateLegalMoves(board);
 
     //Scoring and Sorting Moves:
     for(auto &move : legalMoves) 
+    {
         move.score = scoreMove(move, board);
+        //if you find the exact move scored in Ttable
+        if(move.from == ttMove.from && move.to == ttMove.to 
+            && move.promotionPiece == ttMove.promotionPiece)
+            move.score+= 20000; //give the move a bonus so to prioritize it
+    }
 
     sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
     {
@@ -508,6 +523,7 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
     }
     
     int bestScore = -999999;
+    Move bestMove;
 
     for(auto move : legalMoves)
     {
@@ -521,12 +537,31 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
 
         board.unmakeMove(move);
 
-        bestScore = std::max(bestScore,score);
+        if(score > bestScore)
+        {
+            bestScore = score;
+            bestMove = move;
+        }
+
         alpha = std::max(alpha, score);
 
         //Prune:
-        if(alpha >= beta) break;
+        if(alpha >= beta) 
+        {
+            //Record the Prune into TTable: (as beta-cutoff so store as LOWERBOUND)
+            TT.recordHash(board.getCurrentHash(), bestScore, depth, bestMove, TT_LOWERBOUND);
+            break;
+        }
     }
+
+    TTFlag flag;
+    if (bestScore <= originalAlpha) {
+        flag = TT_UPPERBOUND; // Alpha Fail
+    } else {
+        flag = TT_EXACT;      // found a better move, and no cutoff
+    }
+
+    TT.recordHash(board.getCurrentHash(), bestScore, depth, bestMove, flag);
 
     return bestScore;
 }

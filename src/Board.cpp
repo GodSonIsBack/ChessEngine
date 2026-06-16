@@ -1,5 +1,6 @@
 #include "../include/Board.hpp"
 #include "../include/Definitions.hpp"
+#include "../include/Zobrist.hpp"
 #include <sstream>
 #include <string>
 #include <iostream>
@@ -10,7 +11,8 @@ Board::Board():
     sideToMove(WHITE),
     castLingRight(0),
     enPassantSquare(NO_SQ),
-    histPtr(0)
+    histPtr(0),
+    currentHash(0)
     {
         loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
@@ -124,6 +126,8 @@ Board::Board():
             Piece pieceType = board[sq];
             currentEval += getValueAndPST(pieceType, (Square) sq);
         }
+
+        currentHash = Zobrist::generateHash(*this);
     }
 
     void Board::makeMove(Move move)
@@ -136,13 +140,19 @@ Board::Board():
             history[histPtr].castLingRight = castLingRight;
             history[histPtr].enPassantSquare = enPassantSquare;
             history[histPtr].currentEval = currentEval;
+            history[histPtr].currentHash = currentHash;
             histPtr++;
 
-        // Handle Captures (Remove the captured piece's score)
+        // Handle Captures (Updates score and Hash)
         if (move.capturedPiece != EMPTY) {
+
             Square capSq = to;
             if (move.isEnPassant) capSq = (Square)((sideToMove == WHITE) ? to - 8 : to + 8);
+
+            //Updating Score
             currentEval -= getValueAndPST(move.capturedPiece, capSq);
+            //Updating Hash
+            currentHash ^= Zobrist::pieceKeys[move.capturedPiece - 1][capSq];
         }
 
         // CastlingRight Update:
@@ -156,10 +166,11 @@ Board::Board():
             15, 15, 15, 15, 15, 15, 15, 15,
             7, 15, 15, 15,  3, 15, 15, 11   // Rank 8 (Black)
             };
-
+            
+            currentHash ^= Zobrist::castleKeys[castLingRight]; //Removing old castlingRight
             castLingRight &= castlingRightsArray[from]; // if King or Rook is moved
             castLingRight &= castlingRightsArray[to]; // if Rook is Taken
-
+            currentHash ^= Zobrist::castleKeys[castLingRight]; //Adding new caslingRight
             // Moving Rook:
             if(move.isCastling)
             {
@@ -170,13 +181,27 @@ Board::Board():
                         {
                             case G1: 
                                 board[F1] = board[H1]; board[H1] = EMPTY; 
+                                
+                                //Updating Score
                                 currentEval -= getValueAndPST(W_ROOK, H1); 
                                 currentEval += getValueAndPST(W_ROOK, F1);
+
+                                //Updating Hash
+                                currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][H1];
+                                currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][F1];
+
                                 break;
                             case C1:
                                 board[D1] = board[A1]; board[A1] = EMPTY; 
+
+                                //Updating Score
                                 currentEval -= getValueAndPST(W_ROOK, A1); 
                                 currentEval += getValueAndPST(W_ROOK, D1);
+
+                                //Updating Hash
+                                currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][A1];
+                                currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][D1];
+
                                 break;
                         }
                         break;
@@ -185,13 +210,27 @@ Board::Board():
                         {
                             case G8: 
                                 board[F8] = board[H8]; board[H8] = EMPTY; 
+
+                                //Updating Score
                                 currentEval -= getValueAndPST(B_ROOK, H8);
                                 currentEval += getValueAndPST(B_ROOK, F8);
+
+                                //Updating Hash
+                                currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][H8];
+                                currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][F8];
+
                                 break;
                             case C8:
                                 board[D8] = board[A8]; board[A8] = EMPTY; 
+
+                                //Updating Score
                                 currentEval -= getValueAndPST(B_ROOK, A8);
                                 currentEval += getValueAndPST(B_ROOK, D8);
+
+                                //Updating Hash
+                                currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][A8];
+                                currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][D8];
+
                                 break;
                         }
                         break;
@@ -204,7 +243,13 @@ Board::Board():
                 int capturedPawnSq = (sideToMove == WHITE) ? to - 8 : to + 8;
                 board[capturedPawnSq] = EMPTY;
             }
-
+            
+            // Remove old En Passant file if it existed
+            Square oldEP = enPassantSquare;
+            if (oldEP != NO_SQ) {
+                currentHash ^= Zobrist::enPassantKeys[oldEP % 8];
+            }
+            
             // wipes the enPassant square every move(cuz enpassant lasts for only one move): 
             enPassantSquare = NO_SQ;
 
@@ -213,6 +258,9 @@ Board::Board():
             {   
                 // The En Passant square is perfectly halfway between 'from' and 'to'!
                 enPassantSquare = (Square)((from + to) / 2);
+                
+                //Updating Hash
+                currentHash ^= Zobrist::enPassantKeys[enPassantSquare % 8];
             }
 
         // Piece Movement:
@@ -222,19 +270,31 @@ Board::Board():
             if(movedPiece == W_KING) King_W = to;
             if(movedPiece == B_KING) King_B = to;
 
+            //Updating Score
             currentEval -= getValueAndPST(movedPiece, from);
             currentEval += getValueAndPST(movedPiece, to);
-        
+
+            //Updating Hash
+            currentHash ^= Zobrist::pieceKeys[movedPiece - 1][from];
+            currentHash ^= Zobrist::pieceKeys[movedPiece - 1][to];
+
         // Pawn Promotion:
             if(move.promotionPiece != EMPTY) 
             {
                 board[to] = move.promotionPiece;
+
+                //Updating Score
                 currentEval -= getValueAndPST(movedPiece, to); //remove the pawn
                 currentEval += getValueAndPST(move.promotionPiece, to); //add the promoted piece
+
+                //Updating Hash
+                currentHash ^= Zobrist::pieceKeys[movedPiece - 1][to];
+                currentHash ^= Zobrist::pieceKeys[move.promotionPiece - 1][to];
             }
 
         // Change the turn:
             sideToMove = (Color)(sideToMove ^ 1);
+            currentHash ^= Zobrist::sideKey;
     }
 
     void Board::unmakeMove(Move move)
@@ -249,6 +309,7 @@ Board::Board():
             castLingRight = history[histPtr].castLingRight;
             enPassantSquare = history[histPtr].enPassantSquare;
             currentEval = history[histPtr].currentEval;
+            currentHash = history[histPtr].currentHash;
 
         // Undo turn:
             sideToMove = (Color)(sideToMove ^ 1);
@@ -409,6 +470,11 @@ Board::Board():
     int Board::evaluate()
     {
         return (sideToMove == WHITE) ? currentEval : -currentEval;
+    }
+
+    unsigned long long Board::getCurrentHash()
+    {
+        return currentHash;
     }
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)

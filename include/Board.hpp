@@ -9,6 +9,7 @@ struct StateInfo
     int castLingRight;
     Square enPassantSquare;
     int currentEval;
+    unsigned long long currentHash;
 };
 
 class Board
@@ -36,6 +37,7 @@ class Board
         
         // Evaluation and Search:
             int currentEval;
+            unsigned long long currentHash;
 
         // helper functions:
             Piece charToPiece(char c);
@@ -63,4 +65,5 @@ class Board
             Square getKingSq(Color playingSide);
             int getCastLingRight();
             int getCurrentEval();
+            unsigned long long getCurrentHash();
 };
