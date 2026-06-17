@@ -566,13 +566,19 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
     return bestScore;
 }
 
-Move MoveGenerator::findBestMove(Board &board, int depth, std::vector<Move>& legalMoves)
+Move MoveGenerator::searchRoot(Board &board,int depth, std::vector<Move> &legalMoves, Move prevBest)
 {
     if(legalMoves.empty()) return Move();
 
     //Scoring and Sorting Moves:
     for(auto &move : legalMoves) 
+    {
         move.score = scoreMove(move, board);
+        // We prioritize the bestMove found at depth - 1:
+        if(move.from == prevBest.from && move.to == prevBest.to &&
+            move.promotionPiece == prevBest.promotionPiece)
+        move.score += 20000;
+    }
 
     sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
     {
@@ -598,6 +604,19 @@ Move MoveGenerator::findBestMove(Board &board, int depth, std::vector<Move>& leg
         }
 
         alpha = std::max(alpha, score);
+    }
+
+    return bestMove;
+}
+
+Move MoveGenerator::findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves)
+{
+    //Iterative Deepening: (explores lower depths first then others)
+    Move bestMove = legalMoves[0];
+
+    for(int currentDepth = 1; currentDepth <= targetDepth; currentDepth++)
+    {
+        bestMove = searchRoot(board, currentDepth, legalMoves, bestMove);
     }
 
     return bestMove;

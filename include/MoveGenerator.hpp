@@ -29,5 +29,6 @@ class MoveGenerator
 
         // Search:
         int minimax(Board &board, int depth, int alpha, int beta);
-        Move findBestMove(Board &board, int depth, std::vector<Move>& legalMoves);
+        Move searchRoot(Board &board,int depth, std::vector<Move> &legalMoves, Move prevBest);
+        Move findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves);
 };

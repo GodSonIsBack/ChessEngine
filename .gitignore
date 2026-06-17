@@ -1,0 +1,16 @@
+# Build output
+build/
+
+# Compiled binaries
+src/binaries
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
