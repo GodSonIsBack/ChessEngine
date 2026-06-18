@@ -16,6 +16,8 @@ Optimized heavily with many different search optimizations to make the search at
 
 - **Iterative Deepening** — Rather than jumping straight to depth 7, the engine searches depths incrementally from depth 1, then depth 2, then depth 3... all the way up to the target depth. Each iteration seeds the transposition table making the search at deeper depths complete faster.
 
+- **Mate Distance Pruning** — Checkmate scores are adjusted by ply distance (`-MATE_VALUE + ply`), so the engine always prefers the fastest mate over a slower one.
+
 ### Move Ordering
 - **MVV-LVA (Most Valuable Victim – Least Valuable Attacker)** — Sorted captures according to the **MVV-LVA** move ordering technique making the alpha-beta prune more efficient and searching the tree faster.
 

@@ -36,6 +36,12 @@ enum Points
     QUEEN = 900 
 };
 
+enum MateConstants
+{
+    MATE_VALUE = 999999,
+    MATE_BOUND = 900000
+};
+
 struct ChessPosition
 {
     std::string piecePlacement;

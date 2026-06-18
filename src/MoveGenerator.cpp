@@ -478,9 +478,28 @@ int MoveGenerator::scoreMove(Move move,Board &board)
 
     return score;
 }
+
+// Translates Relative Score (Minimax) -> Absolute Score (TT)
+int MoveGenerator::valueToTT(int score, int ply) {
+    // As our TT stores absolute score (score relative to the given position)
+    // but our minimax returns a relative score (score relative to root)
+    if (score > MATE_BOUND) return score + ply;
+    if (score < -MATE_BOUND) return score - ply;
+    return score;
+}
+
+// Translates Absolute Score (TT) -> Relative Score (Minimax)
+int MoveGenerator::valueFromTT(int score, int ply) {
+    // As our minimax returns a relative score (score relative to root)
+    // bot our TT stores absolute score (score relative to the given position)
+    if (score > MATE_BOUND) return score - ply;
+    if (score < -MATE_BOUND) return score + ply;
+    return score;
+}
+
 // bool isMaximizing : isn't needed cuz evaluate() already returns maximum score relative to whose turn it is 
 // This is the NegaMax structure:
-int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
+int MoveGenerator::minimax(Board &board, int depth, int ply, int alpha, int beta)
 {
     if(depth == 0) return board.evaluate();
 
@@ -490,7 +509,7 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
 
     //if we find this board in table return score strored:
     if(TT.probeTable(board.getCurrentHash(), ttScore, depth, ttMove, alpha, beta))
-        return ttScore;
+        return valueFromTT(ttScore, ply);
 
     //Get all Possible moves at current state:
     std::vector<Move> legalMoves = generateLegalMoves(board);
@@ -515,9 +534,9 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
         Color playingSide = board.getSideToMove();
         Color attackingSide = (Color)(playingSide ^ 1);
 
-        // If CheckMated return a terrible score
+        // MATE_VALUE adjust by ply to prioritize faster mates:
         if(board.isSquareAttacked(board.getKingSq(playingSide), attackingSide)) 
-            return -999999;
+            return -MATE_VALUE + ply;
         
         return 0; // Stalemate
     }
@@ -530,7 +549,7 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
         board.makeMove(move);
 
         // Why negative: the returned score from the minimax will be relative to the oppsing side
-        int score = -minimax(board, depth-1, -beta, -alpha);
+        int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
         // For ex: if it's white turn and we do minimax(board, depth-1) and this returns us +10
         // The +10 is relative to black that means black is in advantage at that position
         // to make it relative to our playing side just negate it
@@ -549,7 +568,8 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
         if(alpha >= beta) 
         {
             //Record the Prune into TTable: (as beta-cutoff so store as LOWERBOUND)
-            TT.recordHash(board.getCurrentHash(), bestScore, depth, bestMove, TT_LOWERBOUND);
+            // Convert the score if score represent a mate move (valueToTT(bestScore)):
+            TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, TT_LOWERBOUND);
             break;
         }
     }
@@ -561,12 +581,13 @@ int MoveGenerator::minimax(Board &board, int depth, int alpha, int beta)
         flag = TT_EXACT;      // found a better move, and no cutoff
     }
 
-    TT.recordHash(board.getCurrentHash(), bestScore, depth, bestMove, flag);
+    // Again before recording check if the score represents a mate move:
+    TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, flag);
 
     return bestScore;
 }
 
-Move MoveGenerator::searchRoot(Board &board,int depth, std::vector<Move> &legalMoves, Move prevBest)
+Move MoveGenerator::searchRoot(Board &board,int depth, int ply, std::vector<Move> &legalMoves, Move prevBest)
 {
     if(legalMoves.empty()) return Move();
 
@@ -594,7 +615,7 @@ Move MoveGenerator::searchRoot(Board &board,int depth, std::vector<Move> &legalM
     for(auto move : legalMoves)
     {
         board.makeMove(move);
-        int score = -minimax(board, depth-1, -beta, -alpha);
+        int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
         board.unmakeMove(move);
 
         if(score > bestScore)
@@ -616,7 +637,8 @@ Move MoveGenerator::findBestMove(Board &board, int targetDepth, std::vector<Move
 
     for(int currentDepth = 1; currentDepth <= targetDepth; currentDepth++)
     {
-        bestMove = searchRoot(board, currentDepth, legalMoves, bestMove);
+        int ply = 0;
+        bestMove = searchRoot(board, currentDepth, ply, legalMoves, bestMove);
     }
 
     return bestMove;

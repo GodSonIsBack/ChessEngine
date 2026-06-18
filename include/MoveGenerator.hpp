@@ -18,6 +18,10 @@ class MoveGenerator
 
         int getPieceValue(Piece PieceType);
         int scoreMove(Move move,Board &board);
+
+        // TT Score Translators (for Mates)
+        int valueToTT(int score, int ply);
+        int valueFromTT(int score, int ply);
         
     public: 
         std::vector<Move> generateAllMoves(Board &board);
@@ -28,7 +32,7 @@ class MoveGenerator
         void perftDivide(int depth, Board &board);
 
         // Search:
-        int minimax(Board &board, int depth, int alpha, int beta);
-        Move searchRoot(Board &board,int depth, std::vector<Move> &legalMoves, Move prevBest);
+        int minimax(Board &board, int depth, int ply, int alpha, int beta);
+        Move searchRoot(Board &board, int depth, int ply, std::vector<Move> &legalMoves, Move prevBest);
         Move findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves);
 };
