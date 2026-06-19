@@ -135,6 +135,7 @@ void runUCI() {
         else if (command == "ucinewgame") {
             board.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
             TT.clear(); // Wiping the TTable for a new game
+            generator.clearHistory(); // Wipes the History Table Clean
         } 
         else if (command == "position") {
             std::string token;
@@ -167,14 +168,23 @@ void runUCI() {
             }
         } 
         else if (command == "go") {
-            int depth = 6; 
+            int depth = 7; 
             std::string token;
+            bool isPerft = false;
             
             // Look for GUI depth commands
             while (ss >> token) {
                 if (token == "depth") {
                     ss >> depth;
+                } else if(token == "perft") {
+                    ss >> depth;
+                    isPerft = true;
                 }
+            }
+
+            if (isPerft) {
+                generator.perftDivide(depth, board);
+                continue; // Skip search
             }
 
             std::vector<Move> legalMoves = generator.generateLegalMoves(board);
@@ -203,16 +213,47 @@ void runUCI() {
     }
 }
 
+// --- Performance Testing (Perft) Mode ---
+void runPerft() {
+    Board board;
+    MoveGenerator generator;
+    std::string fen;
+    int depth;
+
+    std::cout << "====================================\n";
+    std::cout << "         PERFT TESTING MODE         \n";
+    std::cout << "====================================\n";
+    std::cout << "Enter FEN (or type 'start' for default): ";
+    
+    std::getline(std::cin, fen);
+    if (fen == "start" || fen.empty()) {
+        board.loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    } else {
+        board.loadFEN(fen);
+    }
+
+    std::cout << "Enter depth: ";
+    std::cin >> depth;
+
+    std::cout << "\nRunning Perft at depth " << depth << "...\n";
+    
+    generator.perftDivide(depth, board); 
+    
+    std::cout << "\nPerft complete. Exiting.\n";
+}
+
 int main() {
     // Generate the random 64-bit keys before the engine does anything else
     Zobrist::initZobrist();
 
-    std::cout << "Type 'uci' for GUI Mode, or 'play' for Terminal Mode: " << std::endl;
+    std::cout << "Type 'uci' for GUI Mode, or 'play' for Terminal Mode, or 'perft' for Testing: " << std::endl;
     
     std::string firstInput;
     if (std::getline(std::cin, firstInput)) {
         if (firstInput == "uci") {
             runUCI();
+        } else if (firstInput == "perft") {
+            runPerft();
         } else {
             runTerminal();
         }

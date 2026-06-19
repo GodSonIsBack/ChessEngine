@@ -44,7 +44,13 @@ class TranspositionTable
 
         void clear()
         {
-
+            for (auto& entry : ttable) {
+                entry.zobristHash = 0;
+                entry.score = 0;
+                entry.depth = 0;
+                entry.bestMove = Move();
+                entry.flag = TT_EXACT;
+            }
         }
 
         void recordHash(unsigned long long hash, int score, 

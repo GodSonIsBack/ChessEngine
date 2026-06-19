@@ -1,5 +1,6 @@
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 #include "../include/MoveGenerator.hpp"
 #include "../include/Board.hpp"
@@ -7,639 +8,735 @@
 #include "../include/Definitions.hpp"
 #include "../include/TranspositionTable.hpp"
 
-void MoveGenerator::genKnightMoves(Board &board, std::vector<Move> &moves)
-{
-    // relative offsets for knight moves
-    int offsets[] = {15, 17, -17, -15, 6, 10, -6, -10};
-
-    Color c = board.getSideToMove();
-    Piece Knight = (c == WHITE) ? W_KNIGHT : B_KNIGHT;
-
-    for(int sq = 0; sq < 64; sq++)
+// -------- MOVE GENERATORS ----------
+    void MoveGenerator::genKnightMoves(Board &board, std::vector<Move> &moves)
     {
-        if(board.getPiece((Square)sq)!=Knight) continue;
+        // relative offsets for knight moves
+        int offsets[] = {15, 17, -17, -15, 6, 10, -6, -10};
 
-        int file = sq % 8;
-        for(auto offset : offsets)
+        Color c = board.getSideToMove();
+        Piece Knight = (c == WHITE) ? W_KNIGHT : B_KNIGHT;
+
+        for(int sq = 0; sq < 64; sq++)
         {
-            // IGNORE INVALID MOVES:
-            // Wrap-around:
-            if ((offset == -10 || offset == 6) && file < 2) continue;
-            if ((offset == -17 || offset == 15) && file < 1) continue;
-            if ((offset == -15 || offset == 17) && file > 6) continue;
-            if ((offset == -6 || offset == 10) && file > 5) continue;
+            if(board.getPiece((Square)sq)!=Knight) continue;
 
-            // Out of Bounds:
-            int targetSq = sq + offset;
-            if(targetSq < 0 || targetSq > 63) continue;
-
-            // Same color Piece:
-            Piece targetPiece = board.getPiece((Square)targetSq);
-            if(targetPiece != EMPTY)
+            int file = sq % 8;
+            for(auto offset : offsets)
             {
-                bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
-                bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
-                if(isFriendly) continue;
-            }
+                // IGNORE INVALID MOVES:
+                // Wrap-around:
+                if ((offset == -10 || offset == 6) && file < 2) continue;
+                if ((offset == -17 || offset == 15) && file < 1) continue;
+                if ((offset == -15 || offset == 17) && file > 6) continue;
+                if ((offset == -6 || offset == 10) && file > 5) continue;
 
-            // Add valid move
-            moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
-        }
-    }
-}
+                // Out of Bounds:
+                int targetSq = sq + offset;
+                if(targetSq < 0 || targetSq > 63) continue;
 
-void MoveGenerator::genKingMoves(Board &board, std::vector<Move> &moves)
-{
-    // relative offsets for king moves
-    int offsets[] = {1, -1, 8, -8, 9, -9, 7, -7};
-
-    Color c = board.getSideToMove();
-    Piece KING = (c == WHITE) ? W_KING : B_KING;
-
-    for(int sq = 0; sq < 64; sq++)
-    {
-        if(board.getPiece((Square)sq) != KING) continue;
-
-        int file = sq % 8;
-        for(auto offset : offsets)
-        {
-            // IGNORE INVALID MOVES:
-            // Wrap-around:
-            if (file == 0 && (offset == -1 || offset == -9 || offset == 7)) 
-                continue;
-            if (file == 7 && (offset == 1 || offset == -7 || offset == 9)) 
-                continue;
-
-            // Out of Bounds:
-            int targetSq = sq + offset;
-            if(targetSq < 0 || targetSq > 63) continue;
-
-            // Same color Piece:
-            Piece targetPiece = board.getPiece((Square)targetSq);
-            if(targetPiece != EMPTY)
-            {
-                bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
-                bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
-                if(isFriendly) continue;
-            }
-            
-            //Add valid move
-            moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
-        }
-
-        // CASLTING:
-            if(c == WHITE && sq == E1 && !board.isSquareAttacked(E1, BLACK))
-            {
-                // White Kingside
-                // if king is on E1 and F1 and G1 are empty and check-free
-                if((board.getCastLingRight() & 1) && 
-                    board.getPiece(F1) == EMPTY && board.getPiece(G1) == EMPTY &&
-                    !board.isSquareAttacked(F1,BLACK) && !board.isSquareAttacked(G1, BLACK))
-                {
-                    moves.push_back(Move(E1, G1, EMPTY, EMPTY, true));
-                }
-                
-                // White Queenside
-                // if king is on E1 and B1, C1 and D1 are empty and check-free
-                if((board.getCastLingRight() & 2) && board.getPiece(B1) == EMPTY && 
-                    board.getPiece(C1) == EMPTY && board.getPiece(D1) == EMPTY &&
-                    !board.isSquareAttacked(C1, BLACK) && !board.isSquareAttacked(D1, BLACK))
-                {
-                    moves.push_back(Move(E1, C1, EMPTY, EMPTY, true));
-                }
-            }
-            else if (c == BLACK && sq == E8 && !board.isSquareAttacked(E8, WHITE))
-            {
-                // Black Kingside
-                // if king is on E8 and F8 and G8 are empty and check-free
-                if((board.getCastLingRight() & 4) && 
-                    board.getPiece(F8) == EMPTY && board.getPiece(G8) == EMPTY && 
-                    !board.isSquareAttacked(F8,WHITE) && !board.isSquareAttacked(G8, WHITE))
-                {
-                    moves.push_back(Move(E8, G8, EMPTY, EMPTY, true));
-                }
-                
-                // Black Queenside
-                // if king is on E8 and B8, C8 and D8 are empty and check-free
-                if((board.getCastLingRight() & 8) && board.getPiece(C8) == EMPTY && 
-                    board.getPiece(B8) == EMPTY && board.getPiece(D8) == EMPTY &&
-                    !board.isSquareAttacked(C8, WHITE) && !board.isSquareAttacked(D8, WHITE))
-                {
-                    moves.push_back(Move(E8, C8, EMPTY, EMPTY, true));
-                }
-            }
-    }
-}
-
-void MoveGenerator::genRookMoves(Board &board, std::vector<Move> &moves)
-{
-    int offsets[]= {+8,-8,+1,-1};
-
-    Color c = board.getSideToMove();
-    Piece ROOK = (c==WHITE)?W_ROOK:B_ROOK; 
-
-    for(int sq = 0;sq < 64; sq++)
-    {
-        if(board.getPiece((Square)sq) != ROOK) continue;
-
-        for(auto offset : offsets)
-        {
-            int currSq = sq;
-            while(true)
-            {
-                int file = currSq % 8;
-
-                //Wrap-Around:
-                if(file == 7 && offset == 1) break;
-                if(file == 0 && offset == -1) break;
-
-                //Out of Bound:
-                int targetSq = currSq + offset;
-                if(targetSq < 0 || targetSq > 63) break;
-
+                // Same color Piece:
                 Piece targetPiece = board.getPiece((Square)targetSq);
                 if(targetPiece != EMPTY)
                 {
                     bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
                     bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
-                    if(isFriendly) break;
+                    if(isFriendly) continue;
                 }
-                
-                //Add Valid Move:
+
+                // Add valid move
                 moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
-
-                // If it's a capture break
-                if (targetPiece != EMPTY) break;
-
-                currSq = targetSq;
             }
         }
     }
-}
 
-void MoveGenerator::genBishopMoves(Board &board, std::vector<Move> &moves)
-{
-    int offsets[]= {+9,-9,+7,-7};
-
-    Color c = board.getSideToMove();
-    Piece BISHOP = (c==WHITE)?W_BISHOP:B_BISHOP; 
-
-    for(int sq = 0;sq < 64; sq++)
+    void MoveGenerator::genKingMoves(Board &board, std::vector<Move> &moves)
     {
-        if(board.getPiece((Square)sq) != BISHOP) continue;
+        // relative offsets for king moves
+        int offsets[] = {1, -1, 8, -8, 9, -9, 7, -7};
 
-        for(auto offset : offsets)
+        Color c = board.getSideToMove();
+        Piece KING = (c == WHITE) ? W_KING : B_KING;
+
+        for(int sq = 0; sq < 64; sq++)
         {
-            int currSq = sq;
-            while(true)
+            if(board.getPiece((Square)sq) != KING) continue;
+
+            int file = sq % 8;
+            for(auto offset : offsets)
             {
-                int file = currSq % 8;
+                // IGNORE INVALID MOVES:
+                // Wrap-around:
+                if (file == 0 && (offset == -1 || offset == -9 || offset == 7)) 
+                    continue;
+                if (file == 7 && (offset == 1 || offset == -7 || offset == 9)) 
+                    continue;
 
-                //Wrap-Around:
-                if(file == 7 && (offset == 9 || offset == -7)) break;
-                if(file == 0 && (offset == 7 || offset == -9)) break;
+                // Out of Bounds:
+                int targetSq = sq + offset;
+                if(targetSq < 0 || targetSq > 63) continue;
 
-                //Out of Bound:
-                int targetSq = currSq + offset;
-                if(targetSq < 0 || targetSq > 63) break;
-
+                // Same color Piece:
                 Piece targetPiece = board.getPiece((Square)targetSq);
                 if(targetPiece != EMPTY)
                 {
                     bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
                     bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
-                    if(isFriendly) break;
+                    if(isFriendly) continue;
                 }
                 
-                //Add Valid Move:
+                //Add valid move
                 moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
-
-                // If it's a capture break
-                if (targetPiece != EMPTY) break;
-
-                currSq = targetSq;
             }
-        }
-    }
-}
 
-void MoveGenerator::genQueenMoves(Board &board, std::vector<Move> &moves)
-{
-    int offsets[]= {+9,-9,+7,-7,+8,-8,+1,-1};
-
-    Color c = board.getSideToMove();
-    Piece QUEEN = (c == WHITE) ? W_QUEEN : B_QUEEN; 
-
-    for(int sq = 0;sq < 64; sq++)
-    {
-        if(board.getPiece((Square)sq) != QUEEN) continue;
-
-        for(auto offset : offsets)
-        {
-            int currSq = sq;
-            while(true)
-            {
-                int file = currSq % 8;
-
-                //Wrap-Around:
-                if(file == 7 && (offset == 9 || offset == -7 || offset == 1)) break;
-                if(file == 0 && (offset == 7 || offset == -9 || offset == -1)) break;
-
-                //Out of Bound:
-                int targetSq = currSq + offset;
-                if(targetSq < 0 || targetSq > 63) break;
-
-                Piece targetPiece = board.getPiece((Square)targetSq);
-                if(targetPiece != EMPTY)
+            // CASLTING:
+                if(c == WHITE && sq == E1 && !board.isSquareAttacked(E1, BLACK))
                 {
-                    bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
-                    bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
-                    if(isFriendly) break;
-                }
-                
-                // Add Valid Move:
-                moves.push_back(Move((Square)sq, (Square)targetSq, targetPiece));  
-
-                // If it's a capture break
-                if (targetPiece != EMPTY) break;
-
-                currSq = targetSq;
-            }
-        }
-    }
-}
-
-void MoveGenerator::genPawnMoves(Board &board, std::vector<Move> &moves)
-{
-    Color c = board.getSideToMove();
-    Piece PAWN = (c == WHITE) ? W_PAWN : B_PAWN;
-
-    auto addPawnMove = [&](Square fromSq, Square toSq, Piece captured) {
-        int promoRank = (c == WHITE) ? 7 : 0;
-        
-        // If the pawn landed on the final rank, it promotes
-        if (toSq / 8 == promoRank) {
-            moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_QUEEN : B_QUEEN));
-            moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_ROOK : B_ROOK));
-            moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_BISHOP : B_BISHOP));
-            moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_KNIGHT : B_KNIGHT));
-        } else {
-            // Normal move
-            moves.push_back(Move(fromSq, toSq, captured, EMPTY));
-        }
-    };
-    
-    for(int sq = 0;sq < 64; sq++)
-    {
-        if(board.getPiece((Square)sq) != PAWN) continue;
-
-        int rank = sq / 8;
-        int file = sq % 8;
-
-        //White Pawn:
-        if(PAWN == W_PAWN)
-        {
-            // ------ FORWARD MOVEMENTS --------
-            int targetSq = sq + 8;
-    
-            if (targetSq <= 63 && board.getPiece((Square)targetSq) == EMPTY) 
-            {
-                // Single step
-                addPawnMove((Square)sq, (Square)targetSq, EMPTY);
-
-                // Double Step 
-                if (rank == 1) 
-                {
-                    int doubleSq = sq + 16;
-
-                    if (board.getPiece((Square)doubleSq) == EMPTY) 
+                    // White Kingside
+                    // if king is on E1 and F1 and G1 are empty and check-free
+                    if((board.getCastLingRight() & 1) && 
+                        board.getPiece(F1) == EMPTY && board.getPiece(G1) == EMPTY &&
+                        !board.isSquareAttacked(F1,BLACK) && !board.isSquareAttacked(G1, BLACK))
                     {
-                        addPawnMove((Square)sq, (Square)doubleSq, EMPTY);
+                        moves.push_back(Move(E1, G1, EMPTY, EMPTY, true));
+                    }
+                    
+                    // White Queenside
+                    // if king is on E1 and B1, C1 and D1 are empty and check-free
+                    if((board.getCastLingRight() & 2) && board.getPiece(B1) == EMPTY && 
+                        board.getPiece(C1) == EMPTY && board.getPiece(D1) == EMPTY &&
+                        !board.isSquareAttacked(C1, BLACK) && !board.isSquareAttacked(D1, BLACK))
+                    {
+                        moves.push_back(Move(E1, C1, EMPTY, EMPTY, true));
                     }
                 }
-            }
+                else if (c == BLACK && sq == E8 && !board.isSquareAttacked(E8, WHITE))
+                {
+                    // Black Kingside
+                    // if king is on E8 and F8 and G8 are empty and check-free
+                    if((board.getCastLingRight() & 4) && 
+                        board.getPiece(F8) == EMPTY && board.getPiece(G8) == EMPTY && 
+                        !board.isSquareAttacked(F8,WHITE) && !board.isSquareAttacked(G8, WHITE))
+                    {
+                        moves.push_back(Move(E8, G8, EMPTY, EMPTY, true));
+                    }
+                    
+                    // Black Queenside
+                    // if king is on E8 and B8, C8 and D8 are empty and check-free
+                    if((board.getCastLingRight() & 8) && board.getPiece(C8) == EMPTY && 
+                        board.getPiece(B8) == EMPTY && board.getPiece(D8) == EMPTY &&
+                        !board.isSquareAttacked(C8, WHITE) && !board.isSquareAttacked(D8, WHITE))
+                    {
+                        moves.push_back(Move(E8, C8, EMPTY, EMPTY, true));
+                    }
+                }
+        }
+    }
 
-            // ------- DIAGONAL CAPTURES -------
-            int offsets[] = {7, 9};
+    void MoveGenerator::genRookMoves(Board &board, std::vector<Move> &moves)
+    {
+        int offsets[]= {+8,-8,+1,-1};
+
+        Color c = board.getSideToMove();
+        Piece ROOK = (c==WHITE)?W_ROOK:B_ROOK; 
+
+        for(int sq = 0;sq < 64; sq++)
+        {
+            if(board.getPiece((Square)sq) != ROOK) continue;
 
             for(auto offset : offsets)
             {
-                int targetSq = sq + offset;
-                
-                //Wrap-around
-                if(file == 7 && offset == 9) continue;
-                if(file == 0 && offset == 7) continue;
-
-                //Out-of-Bounds
-                if(targetSq < 0 || targetSq > 63) continue;
-
-                Piece targetPiece = board.getPiece((Square)targetSq);
-
-                if(targetPiece >= B_PAWN && targetPiece <= B_KING)
+                int currSq = sq;
+                while(true)
                 {
-                    addPawnMove((Square)sq, (Square)targetSq, targetPiece);
-                }
-                // ---EN PASSANT---
-                else if ((Square)targetSq == board.getEnPassantSquare())
-                {
-                    moves.push_back(
-                        Move((Square)sq, (Square)targetSq, B_PAWN, EMPTY, false, true)
-                    );
+                    int file = currSq % 8;
+
+                    //Wrap-Around:
+                    if(file == 7 && offset == 1) break;
+                    if(file == 0 && offset == -1) break;
+
+                    //Out of Bound:
+                    int targetSq = currSq + offset;
+                    if(targetSq < 0 || targetSq > 63) break;
+
+                    Piece targetPiece = board.getPiece((Square)targetSq);
+                    if(targetPiece != EMPTY)
+                    {
+                        bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
+                        bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
+                        if(isFriendly) break;
+                    }
+                    
+                    //Add Valid Move:
+                    moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
+
+                    // If it's a capture break
+                    if (targetPiece != EMPTY) break;
+
+                    currSq = targetSq;
                 }
             }
         }
-        //Black Pawn:
-        else
+    }
+
+    void MoveGenerator::genBishopMoves(Board &board, std::vector<Move> &moves)
+    {
+        int offsets[]= {+9,-9,+7,-7};
+
+        Color c = board.getSideToMove();
+        Piece BISHOP = (c==WHITE)?W_BISHOP:B_BISHOP; 
+
+        for(int sq = 0;sq < 64; sq++)
         {
-            // ------ FORWARD MOVEMENTS --------
-            int targetSq = sq - 8;
-    
-            if (targetSq >= 0 && board.getPiece((Square)targetSq) == EMPTY) 
+            if(board.getPiece((Square)sq) != BISHOP) continue;
+
+            for(auto offset : offsets)
             {
-                // Single step
-                addPawnMove((Square)sq, (Square)targetSq, EMPTY);
-
-                // Double Step 
-                if (rank == 6) 
+                int currSq = sq;
+                while(true)
                 {
-                    int doubleSq = sq - 16;
+                    int file = currSq % 8;
 
-                    if (board.getPiece((Square)doubleSq) == EMPTY) 
+                    //Wrap-Around:
+                    if(file == 7 && (offset == 9 || offset == -7)) break;
+                    if(file == 0 && (offset == 7 || offset == -9)) break;
+
+                    //Out of Bound:
+                    int targetSq = currSq + offset;
+                    if(targetSq < 0 || targetSq > 63) break;
+
+                    Piece targetPiece = board.getPiece((Square)targetSq);
+                    if(targetPiece != EMPTY)
                     {
-                        addPawnMove(
-                            (Square)sq, (Square)doubleSq, EMPTY
+                        bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
+                        bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
+                        if(isFriendly) break;
+                    }
+                    
+                    //Add Valid Move:
+                    moves.push_back(Move((Square)sq,(Square)targetSq,targetPiece));
+
+                    // If it's a capture break
+                    if (targetPiece != EMPTY) break;
+
+                    currSq = targetSq;
+                }
+            }
+        }
+    }
+
+    void MoveGenerator::genQueenMoves(Board &board, std::vector<Move> &moves)
+    {
+        int offsets[]= {+9,-9,+7,-7,+8,-8,+1,-1};
+
+        Color c = board.getSideToMove();
+        Piece QUEEN = (c == WHITE) ? W_QUEEN : B_QUEEN; 
+
+        for(int sq = 0;sq < 64; sq++)
+        {
+            if(board.getPiece((Square)sq) != QUEEN) continue;
+
+            for(auto offset : offsets)
+            {
+                int currSq = sq;
+                while(true)
+                {
+                    int file = currSq % 8;
+
+                    //Wrap-Around:
+                    if(file == 7 && (offset == 9 || offset == -7 || offset == 1)) break;
+                    if(file == 0 && (offset == 7 || offset == -9 || offset == -1)) break;
+
+                    //Out of Bound:
+                    int targetSq = currSq + offset;
+                    if(targetSq < 0 || targetSq > 63) break;
+
+                    Piece targetPiece = board.getPiece((Square)targetSq);
+                    if(targetPiece != EMPTY)
+                    {
+                        bool isWhitePiece = (targetPiece >= W_PAWN && targetPiece <= W_KING);
+                        bool isFriendly = (c == WHITE) ? isWhitePiece : !isWhitePiece;
+                        if(isFriendly) break;
+                    }
+                    
+                    // Add Valid Move:
+                    moves.push_back(Move((Square)sq, (Square)targetSq, targetPiece));  
+
+                    // If it's a capture break
+                    if (targetPiece != EMPTY) break;
+
+                    currSq = targetSq;
+                }
+            }
+        }
+    }
+
+    void MoveGenerator::genPawnMoves(Board &board, std::vector<Move> &moves)
+    {
+        Color c = board.getSideToMove();
+        Piece PAWN = (c == WHITE) ? W_PAWN : B_PAWN;
+
+        auto addPawnMove = [&](Square fromSq, Square toSq, Piece captured) {
+            int promoRank = (c == WHITE) ? 7 : 0;
+            
+            // If the pawn landed on the final rank, it promotes
+            if (toSq / 8 == promoRank) {
+                moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_QUEEN : B_QUEEN));
+                moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_ROOK : B_ROOK));
+                moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_BISHOP : B_BISHOP));
+                moves.push_back(Move(fromSq, toSq, captured, (c == WHITE) ? W_KNIGHT : B_KNIGHT));
+            } else {
+                // Normal move
+                moves.push_back(Move(fromSq, toSq, captured, EMPTY));
+            }
+        };
+        
+        for(int sq = 0;sq < 64; sq++)
+        {
+            if(board.getPiece((Square)sq) != PAWN) continue;
+
+            int rank = sq / 8;
+            int file = sq % 8;
+
+            //White Pawn:
+            if(PAWN == W_PAWN)
+            {
+                // ------ FORWARD MOVEMENTS --------
+                int targetSq = sq + 8;
+        
+                if (targetSq <= 63 && board.getPiece((Square)targetSq) == EMPTY) 
+                {
+                    // Single step
+                    addPawnMove((Square)sq, (Square)targetSq, EMPTY);
+
+                    // Double Step 
+                    if (rank == 1) 
+                    {
+                        int doubleSq = sq + 16;
+
+                        if (board.getPiece((Square)doubleSq) == EMPTY) 
+                        {
+                            addPawnMove((Square)sq, (Square)doubleSq, EMPTY);
+                        }
+                    }
+                }
+
+                // ------- DIAGONAL CAPTURES -------
+                int offsets[] = {7, 9};
+
+                for(auto offset : offsets)
+                {
+                    int targetSq = sq + offset;
+                    
+                    //Wrap-around
+                    if(file == 7 && offset == 9) continue;
+                    if(file == 0 && offset == 7) continue;
+
+                    //Out-of-Bounds
+                    if(targetSq < 0 || targetSq > 63) continue;
+
+                    Piece targetPiece = board.getPiece((Square)targetSq);
+
+                    if(targetPiece >= B_PAWN && targetPiece <= B_KING)
+                    {
+                        addPawnMove((Square)sq, (Square)targetSq, targetPiece);
+                    }
+                    // ---EN PASSANT---
+                    else if ((Square)targetSq == board.getEnPassantSquare())
+                    {
+                        moves.push_back(
+                            Move((Square)sq, (Square)targetSq, B_PAWN, EMPTY, false, true)
                         );
                     }
                 }
             }
-
-            // ------- DIAGONAL CAPTURES -------
-            int offsets[] = {-7, -9};
-
-            for(auto offset : offsets)
+            //Black Pawn:
+            else
             {
-                int targetSq = sq + offset;
-                
-                //Wrap-around
-                if(file == 7 && offset == -7) continue;
-                if(file == 0 && offset == -9) continue;
-
-                //Out-of-Bounds
-                if(targetSq < 0 || targetSq > 63) continue;
-
-                Piece targetPiece = board.getPiece((Square)targetSq);
-
-                if(targetPiece >= W_PAWN && targetPiece <= W_KING)
+                // ------ FORWARD MOVEMENTS --------
+                int targetSq = sq - 8;
+        
+                if (targetSq >= 0 && board.getPiece((Square)targetSq) == EMPTY) 
                 {
-                    addPawnMove(
-                        (Square)sq, (Square)targetSq, targetPiece
-                    );
+                    // Single step
+                    addPawnMove((Square)sq, (Square)targetSq, EMPTY);
+
+                    // Double Step 
+                    if (rank == 6) 
+                    {
+                        int doubleSq = sq - 16;
+
+                        if (board.getPiece((Square)doubleSq) == EMPTY) 
+                        {
+                            addPawnMove(
+                                (Square)sq, (Square)doubleSq, EMPTY
+                            );
+                        }
+                    }
                 }
-                // ---EN PASSANT---
-                else if ((Square)targetSq == board.getEnPassantSquare())
+
+                // ------- DIAGONAL CAPTURES -------
+                int offsets[] = {-7, -9};
+
+                for(auto offset : offsets)
                 {
-                    // Move to empty quare but capture white pawn
-                    moves.push_back(
-                        Move((Square)sq, (Square)targetSq, W_PAWN, EMPTY, false, true)
-                    );
+                    int targetSq = sq + offset;
+                    
+                    //Wrap-around
+                    if(file == 7 && offset == -7) continue;
+                    if(file == 0 && offset == -9) continue;
+
+                    //Out-of-Bounds
+                    if(targetSq < 0 || targetSq > 63) continue;
+
+                    Piece targetPiece = board.getPiece((Square)targetSq);
+
+                    if(targetPiece >= W_PAWN && targetPiece <= W_KING)
+                    {
+                        addPawnMove(
+                            (Square)sq, (Square)targetSq, targetPiece
+                        );
+                    }
+                    // ---EN PASSANT---
+                    else if ((Square)targetSq == board.getEnPassantSquare())
+                    {
+                        // Move to empty quare but capture white pawn
+                        moves.push_back(
+                            Move((Square)sq, (Square)targetSq, W_PAWN, EMPTY, false, true)
+                        );
+                    }
                 }
             }
         }
     }
-}
 
-std::vector<Move> MoveGenerator::generateAllMoves(Board &board)
-{
-    std::vector<Move> moves;
-    moves.reserve(256);
-
-    // generate moves for all pieces:
-    genKnightMoves(board,moves);
-    genKingMoves(board,moves);
-    genRookMoves(board,moves);
-    genBishopMoves(board,moves);
-    genQueenMoves(board,moves);
-    genPawnMoves(board,moves);
-
-    return moves;
-}
-
-std::vector<Move> MoveGenerator::generateLegalMoves(Board &board)
-{
-    std::vector<Move> legalMoves;
-
-    std::vector<Move> pseudoLegal = generateAllMoves(board);
-    for(auto move : pseudoLegal)
+    std::vector<Move> MoveGenerator::generateAllMoves(Board &board)
     {
-        Color playingSide = board.getSideToMove();
-        Color attackingSide = (Color)(playingSide ^ 1);
+        std::vector<Move> moves;
+        moves.reserve(256);
 
-        board.makeMove(move);
+        // generate moves for all pieces:
+        genKnightMoves(board,moves);
+        genKingMoves(board,moves);
+        genRookMoves(board,moves);
+        genBishopMoves(board,moves);
+        genQueenMoves(board,moves);
+        genPawnMoves(board,moves);
 
-        //get king Cordinates and look for checks
-        Square kingSq = board.getKingSq(playingSide);
-        bool isAttacked = board.isSquareAttacked(kingSq, attackingSide);
-
-        if(!isAttacked) legalMoves.push_back(move);
-
-        board.unmakeMove(move);
+        return moves;
     }
 
-    return legalMoves;
-}
-
-int MoveGenerator::getPieceValue(Piece PieceType)
-{
-    switch(PieceType)
+    std::vector<Move> MoveGenerator::generateLegalMoves(Board &board)
     {
-        case W_PAWN:   case B_PAWN:   return PAWN;
-        case W_KNIGHT: case B_KNIGHT: return KNIGHT;
-        case W_BISHOP: case B_BISHOP: return BISHOP;
-        case W_ROOK:   case B_ROOK:   return ROOK;
-        case W_QUEEN:  case B_QUEEN:  return QUEEN;
-        default: return 0;  
-    }
-}
+        std::vector<Move> legalMoves;
 
-int MoveGenerator::scoreMove(Move move,Board &board)
-{
-    int score = 0;
-    
-    //MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
-    if(move.capturedPiece != EMPTY){
-        int victimValue = getPieceValue(move.capturedPiece);
-        int attackerValue = getPieceValue(board.getPiece(move.from));
+        std::vector<Move> pseudoLegal = generateAllMoves(board);
+        for(auto move : pseudoLegal)
+        {
+            Color playingSide = board.getSideToMove();
+            Color attackingSide = (Color)(playingSide ^ 1);
 
-        score += victimValue * 10 - attackerValue;
+            board.makeMove(move);
+
+            //get king Cordinates and look for checks
+            Square kingSq = board.getKingSq(playingSide);
+            bool isAttacked = board.isSquareAttacked(kingSq, attackingSide);
+
+            if(!isAttacked) legalMoves.push_back(move);
+
+            board.unmakeMove(move);
+        }
+
+        return legalMoves;
     }
 
-    if(move.promotionPiece != EMPTY)
-        score += getPieceValue(move.promotionPiece) * 10;
 
-    return score;
-}
 
-// Translates Relative Score (Minimax) -> Absolute Score (TT)
-int MoveGenerator::valueToTT(int score, int ply) {
-    // As our TT stores absolute score (score relative to the given position)
-    // but our minimax returns a relative score (score relative to root)
-    if (score > MATE_BOUND) return score + ply;
-    if (score < -MATE_BOUND) return score - ply;
-    return score;
-}
-
-// Translates Absolute Score (TT) -> Relative Score (Minimax)
-int MoveGenerator::valueFromTT(int score, int ply) {
-    // As our minimax returns a relative score (score relative to root)
-    // bot our TT stores absolute score (score relative to the given position)
-    if (score > MATE_BOUND) return score - ply;
-    if (score < -MATE_BOUND) return score + ply;
-    return score;
-}
-
-// bool isMaximizing : isn't needed cuz evaluate() already returns maximum score relative to whose turn it is 
-// This is the NegaMax structure:
-int MoveGenerator::minimax(Board &board, int depth, int ply, int alpha, int beta)
-{
-    if(depth == 0) return board.evaluate();
-
-    int originalAlpha = alpha; //save original alpha for later
-    int ttScore = 0;
-    Move ttMove;
-
-    //if we find this board in table return score strored:
-    if(TT.probeTable(board.getCurrentHash(), ttScore, depth, ttMove, alpha, beta))
-        return valueFromTT(ttScore, ply);
-
-    //Get all Possible moves at current state:
-    std::vector<Move> legalMoves = generateLegalMoves(board);
-
-    //Scoring and Sorting Moves:
-    for(auto &move : legalMoves) 
+// --------- SEARCH FUNCTIONS ---------
+    int MoveGenerator::minimax(Board &board, int depth, int ply, int alpha, int beta)
     {
-        move.score = scoreMove(move, board);
-        //if you find the exact move scored in Ttable
-        if(move.from == ttMove.from && move.to == ttMove.to 
-            && move.promotionPiece == ttMove.promotionPiece)
-            move.score+= 20000; //give the move a bonus so to prioritize it
-    }
+        if(depth == 0) return board.evaluate();
 
-    sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
-    {
-        return move1.score > move2.score;
-    });
+        int originalAlpha = alpha; //save original alpha for later
+        int ttScore = 0;
+        Move ttMove;
 
-    if(legalMoves.empty())
-    { 
-        Color playingSide = board.getSideToMove();
-        Color attackingSide = (Color)(playingSide ^ 1);
+        //if we find this board in table return score strored:
+        if(TT.probeTable(board.getCurrentHash(), ttScore, depth, ttMove, alpha, beta))
+            return valueFromTT(ttScore, ply);
 
-        // MATE_VALUE adjust by ply to prioritize faster mates:
-        if(board.isSquareAttacked(board.getKingSq(playingSide), attackingSide)) 
-            return -MATE_VALUE + ply;
+        //Get all Possible moves at current state:
+        std::vector<Move> legalMoves = generateLegalMoves(board);
+
+        //Scoring and Sorting Moves:
+        for(auto &move : legalMoves) 
+        {
+            move.score = scoreMove(move, board, ply);
+            //if you find the exact move scored in Ttable
+            if(move.from == ttMove.from && move.to == ttMove.to 
+                && move.promotionPiece == ttMove.promotionPiece)
+                move.score+= TT_OFFSET; //give the move a bonus so to prioritize it
+        }
+
+        sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
+        {
+            return move1.score > move2.score;
+        });
+
+        if(legalMoves.empty())
+        { 
+            Color playingSide = board.getSideToMove();
+            Color attackingSide = (Color)(playingSide ^ 1);
+
+            // MATE_VALUE adjust by ply to prioritize faster mates:
+            if(board.isSquareAttacked(board.getKingSq(playingSide), attackingSide)) 
+                return -MATE_VALUE + ply;
+            
+            return 0; // Stalemate
+        }
         
-        return 0; // Stalemate
-    }
-    
-    int bestScore = -999999;
-    Move bestMove;
+        int bestScore = -MATE_VALUE;
+        Move bestMove;
 
-    for(auto move : legalMoves)
-    {
-        board.makeMove(move);
+        //Bucket to Store all quiet Moves:
+        std::vector<Move> quietMovesSearched;
+        Color playingSide = board.getSideToMove();
 
-        // Why negative: the returned score from the minimax will be relative to the oppsing side
-        int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
-        // For ex: if it's white turn and we do minimax(board, depth-1) and this returns us +10
-        // The +10 is relative to black that means black is in advantage at that position
-        // to make it relative to our playing side just negate it
-
-        board.unmakeMove(move);
-
-        if(score > bestScore)
+        for(auto move : legalMoves)
         {
-            bestScore = score;
-            bestMove = move;
+            board.makeMove(move);
+
+            // Why negative: the returned score from the minimax will be relative to the oppsing side
+            int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
+            // For ex: if it's white turn and we do minimax(board, depth-1) and this returns us +10
+            // The +10 is relative to black that means black is in advantage at that position
+            // to make it relative to our playing side just negate it
+
+            board.unmakeMove(move);
+
+            if(score > bestScore)
+            {
+                bestScore = score;
+                bestMove = move;
+            }
+
+            alpha = std::max(alpha, score);
+
+            //Prune:
+            if(alpha >= beta) 
+            {
+                // Killer move is a Quiet Move causing beta Cutoff
+                if(move.capturedPiece == EMPTY && move.promotionPiece == EMPTY)
+                {
+                    storeKillerMove(move, ply);
+
+                    // REWARDING KILLER
+                    updateHistory(move, depth, true, playingSide);
+
+                    // PENALIZE WASTED MOVES
+                    for (Move badQuiet : quietMovesSearched) {
+                        updateHistory(badQuiet, depth, false, playingSide);
+                    }
+                }
+
+                //Record the Prune into TTable: (as beta-cutoff so store as LOWERBOUND)
+                // Convert the score if score represent a mate move (valueToTT(bestScore)):
+                TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, TT_LOWERBOUND);
+
+                break;
+            }
+
+            // No prune happened if flow reaches here and the move is quite, add to bucket
+            if(move.capturedPiece == EMPTY && move.promotionPiece == EMPTY) {
+                quietMovesSearched.push_back(move);
+            }
         }
 
-        alpha = std::max(alpha, score);
+        TTFlag flag;
+        if (bestScore <= originalAlpha) {
+            flag = TT_UPPERBOUND; // Alpha Fail
+        } else {
+            flag = TT_EXACT;      // found a better move, and no cutoff
+        }
 
-        //Prune:
-        if(alpha >= beta) 
+        // Again before recording check if the score represents a mate move:
+        TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, flag);
+
+        return bestScore;
+    }
+
+    Move MoveGenerator::searchRoot(Board &board,int depth, int ply, std::vector<Move> &legalMoves, Move prevBest)
+    {
+        if(legalMoves.empty()) return Move();
+
+        //Scoring and Sorting Moves:
+        for(auto &move : legalMoves) 
         {
-            //Record the Prune into TTable: (as beta-cutoff so store as LOWERBOUND)
-            // Convert the score if score represent a mate move (valueToTT(bestScore)):
-            TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, TT_LOWERBOUND);
-            break;
+            move.score = scoreMove(move, board, ply);
+            // We prioritize the bestMove found at depth - 1:
+            if(move.from == prevBest.from && move.to == prevBest.to &&
+                move.promotionPiece == prevBest.promotionPiece)
+            move.score += TT_OFFSET;
+        }
+
+        sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
+        {
+            return move1.score > move2.score;
+        });
+
+        Move bestMove = legalMoves[0];
+        int bestScore = -MATE_VALUE;
+
+        int alpha = -MATE_VALUE;
+        int beta = MATE_VALUE;
+
+        for(auto move : legalMoves)
+        {
+            board.makeMove(move);
+            int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
+            board.unmakeMove(move);
+
+            if(score > bestScore)
+            {
+                bestScore = score;
+                bestMove = move;
+            }
+
+            alpha = std::max(alpha, score);
+        }
+
+        return bestMove;
+    }
+
+    Move MoveGenerator::findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves)
+    {
+        //Clear All Killer Moves before begining Iterative Deepening:
+        for(int i = 0;i < 2;i++)
+        {
+            for(int j = 0; j < MAX_PLY; j++)
+            {
+                KillerMoves[i][j] = Move();
+            }
+        }
+
+        //Iterative Deepening: (explores lower depths first then others)
+        Move bestMove = legalMoves[0];
+
+        for(int currentDepth = 1; currentDepth <= targetDepth; currentDepth++)
+        {
+            int ply = 0;
+            bestMove = searchRoot(board, currentDepth, ply, legalMoves, bestMove);
+        }
+
+        return bestMove;
+    }
+
+// --------- MULTIPURPOSE HELPERS -------
+    int MoveGenerator::getPieceValue(Piece PieceType)
+    {
+        switch(PieceType)
+        {
+            case W_PAWN:   case B_PAWN:   return PAWN;
+            case W_KNIGHT: case B_KNIGHT: return KNIGHT;
+            case W_BISHOP: case B_BISHOP: return BISHOP;
+            case W_ROOK:   case B_ROOK:   return ROOK;
+            case W_QUEEN:  case B_QUEEN:  return QUEEN;
+            default: return 0;  
         }
     }
 
-    TTFlag flag;
-    if (bestScore <= originalAlpha) {
-        flag = TT_UPPERBOUND; // Alpha Fail
-    } else {
-        flag = TT_EXACT;      // found a better move, and no cutoff
-    }
-
-    // Again before recording check if the score represents a mate move:
-    TT.recordHash(board.getCurrentHash(), valueToTT(bestScore, ply), depth, bestMove, flag);
-
-    return bestScore;
-}
-
-Move MoveGenerator::searchRoot(Board &board,int depth, int ply, std::vector<Move> &legalMoves, Move prevBest)
-{
-    if(legalMoves.empty()) return Move();
-
-    //Scoring and Sorting Moves:
-    for(auto &move : legalMoves) 
+    int MoveGenerator::scoreMove(Move move,Board &board,int ply)
     {
-        move.score = scoreMove(move, board);
-        // We prioritize the bestMove found at depth - 1:
-        if(move.from == prevBest.from && move.to == prevBest.to &&
-            move.promotionPiece == prevBest.promotionPiece)
-        move.score += 20000;
-    }
+        int score = 0;
+        
+        //MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+        if(move.capturedPiece != EMPTY){
+            int victimValue = getPieceValue(move.capturedPiece);
+            int attackerValue = getPieceValue(board.getPiece(move.from));
 
-    sort(legalMoves.begin(), legalMoves.end(), [](const Move &move1, const Move &move2)
-    {
-        return move1.score > move2.score;
-    });
-
-    Move bestMove = legalMoves[0];
-    int bestScore = -999999;
-
-    int alpha = -999999;
-    int beta = 999999;
-
-    for(auto move : legalMoves)
-    {
-        board.makeMove(move);
-        int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
-        board.unmakeMove(move);
-
-        if(score > bestScore)
+            score += MVV_LVA_OFFSET + (victimValue * 10 - attackerValue);
+        }
+        else
         {
-            bestScore = score;
-            bestMove = move;
+            // Killer Moves:
+            int i = 0;
+            while(i < 2 && score == 0)
+            {
+                Move killer = KillerMoves[i][ply];
+                if(move.from == killer.from && move.to == killer.to && 
+                    move.promotionPiece == killer.promotionPiece)
+                    score = MVV_LVA_OFFSET - (i + 1) * KILLER_OFFSET;
+                i++;
+            }
+
+            // Quiet Moves not in Killer Moves:
+            if(score == 0)
+                score += historyTable[board.getSideToMove()][move.from][move.to];
         }
 
-        alpha = std::max(alpha, score);
+        if(move.promotionPiece != EMPTY)
+        {
+            score += getPieceValue(move.promotionPiece) * 10;
+            
+            if (move.capturedPiece == EMPTY) {
+                score += MVV_LVA_OFFSET;
+            }
+        }
+
+        return score;
     }
 
-    return bestMove;
-}
+    int MoveGenerator::valueToTT(int score, int ply) {
+        //Translates Relative Score (Minimax) -> Absolute Score (TT)
+        
+        // As our TT stores absolute score (score relative to the given position)
+        // but our minimax returns a relative score (score relative to root)
+        if (score > MATE_BOUND) return score + ply;
+        if (score < -MATE_BOUND) return score - ply;
+        return score;
+    }
 
-Move MoveGenerator::findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves)
-{
-    //Iterative Deepening: (explores lower depths first then others)
-    Move bestMove = legalMoves[0];
+    int MoveGenerator::valueFromTT(int score, int ply) {
+        //Translates Absolute Score (TT) -> Relative Score (Minimax)
+        
+        // As our minimax returns a relative score (score relative to root)
+        // bot our TT stores absolute score (score relative to the given position)
+        if (score > MATE_BOUND) return score - ply;
+        if (score < -MATE_BOUND) return score + ply;
+        return score;
+    }
 
-    for(int currentDepth = 1; currentDepth <= targetDepth; currentDepth++)
+    void MoveGenerator::storeKillerMove(Move move, int ply)
     {
-        int ply = 0;
-        bestMove = searchRoot(board, currentDepth, ply, legalMoves, bestMove);
+        Move killer = KillerMoves[0][ply];
+
+        // If it's same as first killer Move, don't add:
+        if(move.from == killer.from && move.to == killer.to && 
+            move.promotionPiece == killer.promotionPiece)
+        return;
+
+        KillerMoves[1][ply] = KillerMoves[0][ply];
+        KillerMoves[0][ply] = move;
     }
 
-    return bestMove;
-}
+    void MoveGenerator::updateHistory(Move move,int depth, bool good, Color sideToMove)
+    {
+        int bonus = depth * depth;
+        if(!good) bonus = -bonus; // If move is not useful penalize
+
+        auto clamp = [](int bonus, int MIN, int MAX){
+            if(bonus < MIN) return MIN;
+            if(bonus > MAX) return MAX;
+            return bonus;
+        };
+
+        //History Gravity Formula (given in wiki):
+        int clampedBonus = clamp(bonus, -MAX_HISTORY, MAX_HISTORY);
+        historyTable[sideToMove][move.from][move.to] += 
+            clampedBonus - historyTable[sideToMove][move.from][move.to] * abs(clampedBonus) / MAX_HISTORY;
+    }
+
+    void MoveGenerator::clearHistory()
+    {
+        memset(historyTable, 0, sizeof(historyTable));
+    }
