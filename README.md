@@ -2,11 +2,13 @@
 
 A chess engine built completely from scratch in C++17 without the use of any libraries or frameworks.
 
-The engine provides two playable modes:
-- It has support for UCI protocol so it can work with any UCI compatible chess GUI.
-- It also supports play in the terminal itself.
+The engine provides three modes:
+- **UCI Mode** — Works with any UCI-compatible chess GUI (CuteChess, Arena, etc.)
+- **Terminal Mode** — Play against the engine directly in the console
+- **Perft Mode** — Run performance tests to verify move generation correctness
 
-Optimized heavily with many different search optimizations to make the search at depth 7 fastest achievable.
+Capable of achieving an average time of *2.5s* at depth 7.
+Searches comfortably at depth 8 with multiple layers of search optimizations stacked on top of each other.
 
 
 ## Features
@@ -14,19 +16,25 @@ Optimized heavily with many different search optimizations to make the search at
 ### Search Algorithm
 - **Negamax with Alpha-Beta Pruning** — Implemented NegaMax instead of the plain minimax with alpha-beta bounds to prune off branches not affecting the results, massively reducing the number of positions the engine has to look at.
 
-- **Iterative Deepening** — Rather than jumping straight to depth 7, the engine searches depths incrementally from depth 1, then depth 2, then depth 3... all the way up to the target depth. Each iteration seeds the transposition table making the search at deeper depths complete faster.
+- **Iterative Deepening** — Rather than jumping straight to the target depth, the engine searches incrementally from depth 1 up to the target. Each iteration seeds the transposition table and produces a best move, making deeper searches complete faster.
 
 - **Mate Distance Pruning** — Checkmate scores are adjusted by ply distance (`-MATE_VALUE + ply`), so the engine always prefers the fastest mate over a slower one.
 
 ### Move Ordering
-- **MVV-LVA (Most Valuable Victim – Least Valuable Attacker)** — Sorted captures according to the **MVV-LVA** move ordering technique making the alpha-beta prune more efficient and searching the tree faster.
+- **Transposition Table Move Priority** — assigns a massive score bonus (`TT_OFFSET = 300,000`) to the move returned from Transposition Table having it to be searched first, leading to a massive speedup in the engine.
+- **MVV-LVA (Most Valuable Victim – Least Valuable Attacker)** — Sorts captures according to the **MVV-LVA** move ordering technique making the alpha-beta prune more efficient and searching the tree faster.
 
-- **Transposition Table Move Priority** — assigns a massive score bonus (20,000) to the move returned from Transposition Table having it to be searched first, leading to a massive speedup in the engine.
+
+
+- **Killer Move Heuristic** — Stores up to 2 killer moves per ply. These moves are prioritized in sibling nodes since a move that refuted one position is likely strong in similar positions at the same depth.
+
+- **History Heuristic** — Maintains a `[side][from][to]` table that tracks which quiet moves have historically been good across the entire search. Rewards and Penalizes the moves using **History Gravity Formula** ensuring more efficient move ordering.
+
 
 ### Transposition Table
 - **Incremental Zobrist Hashing** — Every board position gets a unique 64-bit hash using XOR of pre-generated random numbers. The hash updates incrementally on each move (no need to rehash the entire board), making it essentially free.
 
-- **1M Entry Hash Table** — A 2^20 entry table indexed by bitwise masking. Storing the score, depth, best move, and a flag (EXACT / LOWERBOUND / UPPERBOUND) for each position. Prevents the engine from re-evaluating positions it's already seen leading to a massive boost in performance and a Huge ELO boost of the engine.
+- **1M Entry Hash Table** — A 2^20 entry table indexed by bitwise masking. Stores the score, depth, best move, and a flag (EXACT / LOWERBOUND / UPPERBOUND) for each position. Prevents the engine from re-evaluating positions it has already seen.
 
 ### Evaluation
 - **Material Counting + Piece-Square Tables(PSTs)** — The evaluation is a sum of material values (pawn=100, knight/bishop=300, rook=500, queen=900) and positional bonuses from pre-written **PSTs** encouraging piece mobility.
@@ -41,17 +49,19 @@ Optimized heavily with many different search optimizations to make the search at
 - **Make / Unmake Architecture** — Moves are done and undone using a state history stack. This allows the search to explore millions of positions without copying the board. Castling, en passant, promotions, and captures are all handled correctly in both directions.
 
 ### Move Generation
-- **Pseudo-Legal + Legality Filter** — Moves are generated without checking for pins/discovered checks first (pseudo-legal), then filtered by actually making the move and checking if the king is in check. Not the fastest approach but it's correct and simple.
+- **Pseudo-Legal + Legality Filter** — Moves are generated without checking for pins/discovered checks first (pseudo-legal), then filtered by actually making the move and checking if the king is in check.
 
 - **Complete Rule Support** — Castling (both sides, both colors), en passant, pawn double-push, and pawn promotion to all four piece types.
 
 ### UCI Protocol
-- **Fully UCI Compatible** — Implements the `uci`, `isready`, `position`, `go`, `ucinewgame`, and `quit` commands. Works with CuteChess, Arena, and other UCI GUIs out of the box.
+- **Fully UCI Compatible** — Implements `uci`, `isready`, `position`, `go`, `go perft`, `ucinewgame`, and `quit`. Works with CuteChess, Arena, and other UCI GUIs out of the box.
 
-- **Terminal Play Mode** — If you don't have a GUI, just run the binary and type `play`. You can move pieces using algebraic notation (e.g., `e2e4`) and the engine will respond.
+- **Terminal Play Mode** — Run the binary and type `play`. Move pieces using algebraic notation (e.g., `e2e4`) and the engine responds.
+
+- **Perft Mode** — Run the binary and type `perft` to test move generation against any FEN position at any depth. Also available via UCI with `go perft <depth>`.
 
 ### Correctness
-- **Perft Testing** — Built-in perft (performance test) and perft divide functions to verify move generation against known node counts. This is how I caught most of my bugs.
+- **Perft Testing** — Built-in perft and perft divide functions to verify move generation against known node counts.
 
 
 ## Project Structure
@@ -60,16 +70,16 @@ Optimized heavily with many different search optimizations to make the search at
 ChessEngine/
 ├── include/
 │   ├── Board.hpp              # Board state, FEN parsing, make/unmake
-│   ├── MoveGenerator.hpp      # Move generation + search (alpha-beta, ID)
+│   ├── MoveGenerator.hpp      # Move generation, search, Killer/History tables
 │   ├── TranspositionTable.hpp # TT with Zobrist probing + recording
 │   ├── Zobrist.hpp            # Zobrist key initialization + hashing
 │   ├── Move.hpp               # Move struct (from, to, flags)
 │   └── Definitions.hpp        # Enums, constants, piece-square tables
 │
 ├── src/
-│   ├── main.cpp               # Entry point, UCI loop, terminal mode
+│   ├── main.cpp               # Entry point, UCI loop, terminal + perft modes
 │   ├── Board.cpp              # Board implementation
-│   ├── MoveGenerator.cpp      # Move gen + search
+│   ├── MoveGenerator.cpp      # Move gen + search + heuristics
 │   └── Perft.cpp              # Perft testing
 └── CMakeLists.txt
 ```
@@ -88,9 +98,8 @@ cmake -S . -B build
 cmake --build build
 ```
 
-> **Note:** The build uses `-O3` optimization. Without it, the engine will be noticeably slower because the STL containers don't get their bounds-checking stripped out.
+> **Note:** The build uses `-O3` optimization. Without it, the engine will be noticeably slower due to unoptimized STL checks.
 
----
 
 ## How to Use
 
@@ -102,7 +111,14 @@ cmake --build build
 You play as white, type moves like `e2e4`, `g1f3`, etc. The engine plays as black.
 
 **Use with a Chess GUI:**
-Load the compiled binary into any UCI-compatible GUI (CuteChess, Arena, etc.). When the GUI sends `uci`, the engine automatically switches to protocol mode.
+Load the compiled binary into any UCI-compatible GUI (CuteChess, Arena, etc.). The GUI sends `uci` and the engine automatically switches to protocol mode.
+
+**Run perft tests:**
+```
+./build/engine
+> perft
+```
+Enter a FEN string (or press enter for the starting position) and a depth to verify move generation.
 
 ## Technical Decisions Worth Mentioning
 
@@ -112,17 +128,18 @@ A few choices I made and why:
 
 - **Incremental eval + hash updates** — Both the evaluation and the Zobrist hash are incrementally updated inside `makeMove()` / `unmakeMove()` rather than being recalculated. This keeps the per-node cost constant regardless of how many pieces are on the board.
 
-- **State history stack instead of board copying** — The `StateInfo history[2048]` array acts as an undo stack. Each `makeMove` pushes the current castling rights, en passant square, evaluation, and hash. Each `unmakeMove` pops them. Making this an efficient way to do and undo the board state during Search.
+- **State history stack instead of board copying** — The `StateInfo history[2048]` array acts as an undo stack. Each `makeMove` pushes the current castling rights, en passant square, evaluation, and hash. Each `unmakeMove` pops them — far cheaper than cloning the board.
 
-- **TT move bonus of 20,000** — When the transposition table has a best move from a shallower search, that move is scored 20,000 points higher than any MVV-LVA capture. This ensures the iterative deepening best-move is always searched first, which is the main reason iterative deepening actually works.
+- **Layered move ordering with explicit score tiers** — Moves are scored using named constants (`TT_OFFSET = 300,000` > `MVV_LVA_OFFSET = 200,000` > `KILLER_OFFSET = 1,000` > history scores). This guarantees TT moves are always searched before captures, captures before killers, and killers before quiet history moves.
+
+- **History gravity** — The history table uses the gravity formula (`bonus - current * |bonus| / MAX`) from the Chess Programming Wiki to prevent scores from growing without bound. Good moves get rewarded, moves that wasted search time get penalized.
 
 
 ## TO-DO
 
-- [ ] Killer Move Heuristic — Store quiet moves (non-captures) that caused a beta cutoff at each depth. When ordering moves prioritise those killer moves.
-- [ ] History Heuristic — Maintain a `[piece][toSquare]` table that accumulates a bonus every time a quiet move improves alpha
-- [ ] Time Management — Dynamic depth based on remaining clock time instead of a fixed depth.
-- [ ] Bitboard Representation — Replace the int[64] board with 64-bit bitboards for faster move generation.
+- [ ] Quiescence Search — Continue searching captures at depth 0 to avoid the horizon effect
+- [ ] Time Management — Dynamic depth based on remaining clock time instead of a fixed depth
+- [ ] Bitboard Representation — Replace the int[64] board with 64-bit bitboards for faster move generation
 
 ## Learning Resources
 
