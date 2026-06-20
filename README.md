@@ -7,8 +7,8 @@ The engine provides three modes:
 - **Terminal Mode** — Play against the engine directly in the console
 - **Perft Mode** — Run performance tests to verify move generation correctness
 
-Capable of achieving an average time of *2.5s* at depth 7.
-Searches comfortably at depth 8 with multiple layers of search optimizations stacked on top of each other.
+Supports full UCI time management (`wtime`, `btime`, `winc`, `binc`, `movetime`, `go depth`), three-fold repetition detection, and the 50-move draw rule.
+Searches comfortably at depth 8+ with multiple layers of search optimizations stacked on top of each other.
 
 
 ## Features
@@ -20,8 +20,20 @@ Searches comfortably at depth 8 with multiple layers of search optimizations sta
 
 - **Mate Distance Pruning** — Checkmate scores are adjusted by ply distance (`-MATE_VALUE + ply`), so the engine always prefers the fastest mate over a slower one.
 
+### Time Management
+- **Dynamic Depth via Clock** — When the GUI sends `wtime/btime`, the engine allocates `remaining_time / 40 + increment / 2` *(allows for dynamic time limit)* per move and searches up to `MAX_PLY` (125) until time runs out, instead of using a fixed depth.
+
+- **Node-Count Polling** — The search checks elapsed time every 2,048 nodes (`nodeCount++ & 2047`). If the allocated time is exhausted mid-search, an emergency abort flag (`stopSearch`) is set and the best move found so far at the last completed depth is returned.
+
+- **Movetime & Depth Overrides** — Supports `go movetime <ms>` for exact time-per-move and `go depth <n>` for fixed-depth search.
+
+### Draw Detection
+- **Three-Fold Repetition** — The engine detects position repetitions by comparing Zobrist hashes in the state history stack. Scans backward through same-side entries up to the last irreversible move (halfMoveClock boundary), returning a draw score of 0 on the first repetition encountered.
+
+- **50-Move Rule** — If `halfMoveClock >= 100` (100 half-moves = 50 full moves) passes without a piece being captured or pawn being moved then the position is scored as a draw.
+
 ### Move Ordering
-- **Transposition Table Move Priority** — assigns a massive score bonus (`TT_OFFSET = 300,000`) to the move returned from Transposition Table having it to be searched first, leading to a massive speedup in the engine.
+- **Transposition Table Move Priority** — Assigns a massive score bonus (`TT_OFFSET = 300,000`) to the move returned from Transposition Table having it to be searched first, leading to a massive speedup in the engine.
 - **MVV-LVA (Most Valuable Victim – Least Valuable Attacker)** — Sorts captures according to the **MVV-LVA** move ordering technique making the alpha-beta prune more efficient and searching the tree faster.
 
 
@@ -58,10 +70,27 @@ Searches comfortably at depth 8 with multiple layers of search optimizations sta
 
 - **Terminal Play Mode** — Run the binary and type `play`. Move pieces using algebraic notation (e.g., `e2e4`) and the engine responds.
 
-- **Perft Mode** — Run the binary and type `perft` to test move generation against any FEN position at any depth. Also available via UCI with `go perft <depth>`.
+- **Perft Mode** — Run the binary and type `perft` to test move generation against any FEN position at any depth. Supports both **perft divide** and **markdown benchmark tables** with NPS stats.
 
 ### Correctness
 - **Perft Testing** — Built-in perft and perft divide functions to verify move generation against known node counts.
+
+
+## Performance Benchmarks
+
+Perft results on the standard starting position:
+
+| Depth | Nodes Visited   | Time Taken | Nodes Per Second (NPS) |
+|-------|-----------------|------------|------------------------|
+| 1     |              20 |     0.000s |                      - |
+| 2     |             400 |     0.000s |                      - |
+| 3     |           8,902 |     0.002s |                  5.16M |
+| 4     |         197,281 |     0.029s |                  6.87M |
+| 5     |       4,865,609 |     0.609s |                  7.98M |
+| 6     |     119,060,324 |    14.726s |                  8.08M |
+| 7     |   3,195,901,860 |   409.455s |                  7.81M |
+
+> All node counts match the [expected perft results](https://www.chessprogramming.org/Perft_Results). Benchmarked with `-O3` on a single thread.
 
 
 ## Project Structure
@@ -70,7 +99,7 @@ Searches comfortably at depth 8 with multiple layers of search optimizations sta
 ChessEngine/
 ├── include/
 │   ├── Board.hpp              # Board state, FEN parsing, make/unmake
-│   ├── MoveGenerator.hpp      # Move generation, search, Killer/History tables
+│   ├── MoveGenerator.hpp      # Move gen, search, Killer/History tables, TimeManager
 │   ├── TranspositionTable.hpp # TT with Zobrist probing + recording
 │   ├── Zobrist.hpp            # Zobrist key initialization + hashing
 │   ├── Move.hpp               # Move struct (from, to, flags)
@@ -80,7 +109,7 @@ ChessEngine/
 │   ├── main.cpp               # Entry point, UCI loop, terminal + perft modes
 │   ├── Board.cpp              # Board implementation
 │   ├── MoveGenerator.cpp      # Move gen + search + heuristics
-│   └── Perft.cpp              # Perft testing
+│   └── Perft.cpp              # Perft testing + benchmark tables
 └── CMakeLists.txt
 ```
 
@@ -119,6 +148,7 @@ Load the compiled binary into any UCI-compatible GUI (CuteChess, Arena, etc.). T
 > perft
 ```
 Enter a FEN string (or press enter for the starting position) and a depth to verify move generation.
+Choose `b` for a **markdown benchmark table** (with nodes, time, and NPS per depth) or `d` for **perft divide**.
 
 ## Technical Decisions Worth Mentioning
 
@@ -134,11 +164,12 @@ A few choices I made and why:
 
 - **History gravity** — The history table uses the gravity formula (`bonus - current * |bonus| / MAX`) from the Chess Programming Wiki to prevent scores from growing without bound. Good moves get rewarded, moves that wasted search time get penalized.
 
+- **Node-count polling for time control** — Instead of checking `std::chrono` on every node (expensive since it is a system call), the engine only checks elapsed time every 2,048 nodes using bitwise & operation (`nodeCount++ & 2047 == 0`). This keeps the per-node overhead near zero while still aborting within a few milliseconds of the deadline.
+
 
 ## TO-DO
 
 - [ ] Quiescence Search — Continue searching captures at depth 0 to avoid the horizon effect
-- [ ] Time Management — Dynamic depth based on remaining clock time instead of a fixed depth
 - [ ] Bitboard Representation — Replace the int[64] board with 64-bit bitboards for faster move generation
 
 ## Learning Resources
@@ -152,7 +183,7 @@ A few choices I made and why:
 - [Algorithms Explained – Minimax and Alpha-Beta Pruning](https://www.youtube.com/watch?v=l-hh51ncgDI) — Clear visual explanation of the core search algorithm *(Sebastian Lague)*
 - [Transposition Tables & Zobrist Keys](https://www.youtube.com/watch?v=QYNRvMolN20) — Walkthrough of TT implementation with Zobrist hashing *(Logic Crazy Chess)*
 - [I Tried to Code a Chess Engine. It Broke Me.](https://www.youtube.com/watch?v=UqCXwP1F-ho) — The video that inspired this project *(commonLuke)*
-
+- [Perft Speed & Debugging Tips - Advanced Java Chess Engine Tutorial 21](https://www.youtube.com/watch?v=BIzAfg5sdqg&t=6s) *(Logic Crazy Chess)*
 ## Author
 
 **Patanjali Dwivedi**
