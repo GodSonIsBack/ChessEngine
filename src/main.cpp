@@ -168,24 +168,63 @@ void runUCI() {
             }
         } 
         else if (command == "go") {
-            int depth = 7; 
+            int depth = -1;
+            int wtime = 0;
+            int btime = 0;
+            int winc = 0;
+            int binc = 0;
+            int movetime = 0;
+
             std::string token;
             bool isPerft = false;
             
             // Look for GUI depth commands
             while (ss >> token) {
-                if (token == "depth") {
-                    ss >> depth;
-                } else if(token == "perft") {
-                    ss >> depth;
-                    isPerft = true;
-                }
+                if (token == "depth") ss >> depth;
+                else if (token == "perft") { ss >> depth; isPerft = true; }
+                else if (token == "wtime") ss >> wtime;
+                else if (token == "btime") ss >> btime;
+                else if (token == "winc") ss >> winc;
+                else if (token == "binc") ss >> binc;
+                else if (token == "movetime") ss >> movetime;
             }
 
             if (isPerft) {
                 generator.perftDivide(depth, board);
                 continue; // Skip search
             }
+
+            int timeLimit = -1;
+            if(movetime > 0) timeLimit = movetime;
+            else if(wtime > 0 || btime > 0)
+            {
+                int timeRemaining = (board.getSideToMove() == WHITE) ? wtime : btime;
+                int increment = (board.getSideToMove() == WHITE) ? winc : binc;
+
+                //Time Allocation formula:
+                timeLimit = (timeRemaining / 40) + (increment / 2);
+
+                //Never allocate more time that you have
+                if(timeLimit >= timeRemaining)
+                    timeLimit = timeRemaining - 50; // Leave 50ms for processing/netorking overhead
+
+                // Absolute minimum time to avoid crashing or passing 0
+                if (timeLimit < 1) {
+                    timeLimit = 1; 
+                }
+            }
+
+            if (timeLimit != -1) { 
+                // if timeLimit exists
+                depth = 125; // equal to MAX_PLY 
+            } else { 
+                // No time limit provided
+                if (depth == -1) depth = 7; // Default testing depth
+                timeLimit = 2000000000; // "infinite" time so the timer never aborts
+            }
+
+            // Start the stopwatch!
+            generator.enableTimer(timeLimit);
 
             std::vector<Move> legalMoves = generator.generateLegalMoves(board);
             Move bestMove = generator.findBestMove(board, depth, legalMoves);
@@ -234,10 +273,19 @@ void runPerft() {
 
     std::cout << "Enter depth: ";
     std::cin >> depth;
+    std::cin.ignore(); // clear the newline character
+
+    std::cout << "\nType 'b' for Markdown Benchmark Table, or 'd' for Perft Divide: ";
+    std::string mode;
+    std::getline(std::cin, mode);
 
     std::cout << "\nRunning Perft at depth " << depth << "...\n";
     
-    generator.perftDivide(depth, board); 
+    if (mode == "b") {
+        generator.perftBenchmark(depth, board);
+    } else {
+        generator.perftDivide(depth, board); 
+    }
     
     std::cout << "\nPerft complete. Exiting.\n";
 }

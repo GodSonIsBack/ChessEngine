@@ -10,6 +10,8 @@ struct StateInfo
     Square enPassantSquare;
     int currentEval;
     unsigned long long currentHash;
+    int halfMoveClock;
+    int fullMoveNumber;
 };
 
 class Board
@@ -23,6 +25,9 @@ class Board
 
         //castling rights:
             int castLingRight; // BQ,BK,WQ,WK
+
+            int halfMoveClock;
+            int fullMoveNumber;
 
         //en passant square:
             Square enPassantSquare;
@@ -57,6 +62,8 @@ class Board
         bool isSquareAttacked(Square sq,Color attackingSide);
 
         int evaluate();
+
+        bool isRepetition();
         
         // getters:
             Piece getPiece(Square s);  
@@ -65,5 +72,6 @@ class Board
             Square getKingSq(Color playingSide);
             int getCastLingRight();
             int getCurrentEval();
+            int getHalfMoveClock();
             unsigned long long getCurrentHash();
 };

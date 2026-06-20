@@ -455,6 +455,16 @@
 // --------- SEARCH FUNCTIONS ---------
     int MoveGenerator::minimax(Board &board, int depth, int ply, int alpha, int beta)
     {
+        //Time Management:
+        if((TM.nodeCount++ & 2047) == 0) //at every 2048th node
+            TM.checkTime();
+        if(TM.stopSearch) return 0; // Emergy Break in search if time ran out
+
+        //only check if ply > 0 : ensures root node always makes a move
+        if (ply > 0 && (board.isRepetition() || board.getHalfMoveClock() >= 100)) {
+            return 0; // Return exactly 0 (Draw score)
+        }
+
         if(depth == 0) return board.evaluate();
 
         int originalAlpha = alpha; //save original alpha for later
@@ -596,6 +606,9 @@
             int score = -minimax(board, depth-1, ply + 1, -beta, -alpha);
             board.unmakeMove(move);
 
+            // return an Empty move if time ran out:
+            if(TM.stopSearch) return Move();
+
             if(score > bestScore)
             {
                 bestScore = score;
@@ -622,10 +635,19 @@
         //Iterative Deepening: (explores lower depths first then others)
         Move bestMove = legalMoves[0];
 
+        // Dynamic Depth (targetDepth is now changed to MAX_PLY) : 
         for(int currentDepth = 1; currentDepth <= targetDepth; currentDepth++)
         {
             int ply = 0;
-            bestMove = searchRoot(board, currentDepth, ply, legalMoves, bestMove);
+
+            //store result in temp variable to not pollute bestMove
+            Move tempMove;
+            tempMove = searchRoot(board, currentDepth, ply, legalMoves, bestMove);
+
+            //if time ran out, stop searching this depth:
+            if(TM.stopSearch) break;
+
+            bestMove = tempMove;
         }
 
         return bestMove;
@@ -739,4 +761,9 @@
     void MoveGenerator::clearHistory()
     {
         memset(historyTable, 0, sizeof(historyTable));
+    }
+
+    void MoveGenerator::enableTimer(int limit) 
+    {
+        TM.startTimer(limit);
     }

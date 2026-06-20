@@ -141,19 +141,28 @@ Board::Board():
             history[histPtr].enPassantSquare = enPassantSquare;
             history[histPtr].currentEval = currentEval;
             history[histPtr].currentHash = currentHash;
+            history[histPtr].halfMoveClock = halfMoveClock;
+            history[histPtr].fullMoveNumber = fullMoveNumber;
             histPtr++;
 
-        // Handle Captures (Updates score and Hash)
-        if (move.capturedPiece != EMPTY) {
+        // Update Half Move Clock
+            halfMoveClock++; // increment on each ply
+            // If pawn move or capture - reset
+            if (move.capturedPiece != EMPTY || movedPiece == W_PAWN || movedPiece == B_PAWN) {
+                halfMoveClock = 0;
+            }
 
-            Square capSq = to;
-            if (move.isEnPassant) capSq = (Square)((sideToMove == WHITE) ? to - 8 : to + 8);
+        // Handle Captures (Updates score, Hash)
+            if (move.capturedPiece != EMPTY) {
 
-            //Updating Score
-            currentEval -= getValueAndPST(move.capturedPiece, capSq);
-            //Updating Hash
-            currentHash ^= Zobrist::pieceKeys[move.capturedPiece - 1][capSq];
-        }
+                Square capSq = to;
+                if (move.isEnPassant) capSq = (Square)((sideToMove == WHITE) ? to - 8 : to + 8);
+
+                //Updating Score
+                currentEval -= getValueAndPST(move.capturedPiece, capSq);
+                //Updating Hash
+                currentHash ^= Zobrist::pieceKeys[move.capturedPiece - 1][capSq];
+            }
 
         // CastlingRight Update:
             static const int castlingRightsArray[64] = {
@@ -293,6 +302,7 @@ Board::Board():
             }
 
         // Change the turn:
+            if (sideToMove == BLACK) fullMoveNumber++;
             sideToMove = (Color)(sideToMove ^ 1);
             currentHash ^= Zobrist::sideKey;
     }
@@ -310,7 +320,9 @@ Board::Board():
             enPassantSquare = history[histPtr].enPassantSquare;
             currentEval = history[histPtr].currentEval;
             currentHash = history[histPtr].currentHash;
-
+            halfMoveClock = history[histPtr].halfMoveClock;
+            fullMoveNumber = history[histPtr].fullMoveNumber;
+            
         // Undo turn:
             sideToMove = (Color)(sideToMove ^ 1);
 
@@ -472,10 +484,22 @@ Board::Board():
         return (sideToMove == WHITE) ? currentEval : -currentEval;
     }
 
-    unsigned long long Board::getCurrentHash()
+    bool Board::isRepetition()
     {
-        return currentHash;
+        // only serach back till halfMoveClock
+        int limit = histPtr - halfMoveClock;
+        if(limit < 0) limit = 0;
+
+        // loop backwards from history - 2(same side's turn):
+        for(int ind = histPtr - 2; ind >= limit; ind -= 2)
+        {
+            if(history[ind].currentHash == currentHash)
+                return true; //return true at the first occurence
+        }
+        
+        return false;
     }
+    
 // ----------GETTERS----------
     Piece Board::getPiece(Square s)
     {
@@ -497,9 +521,19 @@ Board::Board():
         return castLingRight;
     }
 
+    int Board::getHalfMoveClock()
+    {
+        return halfMoveClock;
+    }
+
     Square Board::getKingSq(Color playingSide)
     {
         return (playingSide == WHITE) ? King_W : King_B;
+    }
+
+    unsigned long long Board::getCurrentHash()
+    {
+        return currentHash;
     }
 
 // ----------HELPER FUNCTIONS----------

@@ -1,9 +1,37 @@
 #pragma once
 
 #include <vector>
+#include <chrono>
 
 #include "Move.hpp"
 #include "Board.hpp"
+
+struct TimeManager
+{
+    long long nodeCount;
+    bool stopSearch;
+    int timeLimit;
+    std::chrono::time_point<std::chrono::system_clock> startTime;
+
+    void startTimer(int limit)
+    {
+        nodeCount = 0;
+        stopSearch = false;
+        timeLimit = limit;
+        startTime =  std::chrono::system_clock::now();
+    }
+
+    void checkTime()
+    {
+        if(stopSearch) return;
+        auto currentTime = std::chrono::system_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>
+                            (currentTime - startTime).count();
+        if (elapsed >= timeLimit) {
+            stopSearch = true;
+        }
+    }
+};
 
 class MoveGenerator
 {
@@ -18,6 +46,9 @@ class MoveGenerator
             //Killer Moves and History Heuristic:
             Move KillerMoves[2][MAX_PLY];
             int historyTable[2][64][64] = {{{0}}};
+
+            //Time Management:
+            TimeManager TM;
 
         //-------MOVE GENERATORS----------
             void genKingMoves(Board &board, std::vector<Move> &moves);  
@@ -46,6 +77,7 @@ class MoveGenerator
         //Performance Testing:
         long long perft(int depth, Board &board);
         void perftDivide(int depth, Board &board);
+        void perftBenchmark(int maxDepth, Board &board);
 
         // Search:
         int minimax(Board &board, int depth, int ply, int alpha, int beta);
@@ -54,4 +86,7 @@ class MoveGenerator
 
         //History:
         void clearHistory();
+
+        //Time Management:
+        void enableTimer(int limit);
 };
