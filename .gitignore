@@ -14,3 +14,4 @@ src/binaries
 # OS files
 .DS_Store
 Thumbs.db
+.clang*

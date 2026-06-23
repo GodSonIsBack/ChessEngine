@@ -21,7 +21,7 @@ Searches comfortably at depth 8+ with multiple layers of search optimizations st
 - **Mate Distance Pruning** — Checkmate scores are adjusted by ply distance (`-MATE_VALUE + ply`), so the engine always prefers the fastest mate over a slower one.
 
 ### Time Management
-- **Dynamic Depth via Clock** — When the GUI sends `wtime/btime`, the engine allocates `remaining_time / 40 + increment / 2` *(allows for dynamic time limit)* per move and searches up to `MAX_PLY` (125) until time runs out, instead of using a fixed depth.
+- **Dynamic Depth via Clock** — When the GUI sends `wtime/btime`, the engine allocates `remaining_time / 40 + increment / 2` *(allows for dynamic time limit)* per move and searches up to `MAX_PLY` (256) until time runs out, instead of using a fixed depth.
 
 - **Node-Count Polling** — The search checks elapsed time every 2,048 nodes (`nodeCount++ & 2047`). If the allocated time is exhausted mid-search, an emergency abort flag (`stopSearch`) is set and the best move found so far at the last completed depth is returned.
 
@@ -49,9 +49,11 @@ Searches comfortably at depth 8+ with multiple layers of search optimizations st
 - **1M Entry Hash Table** — A 2^20 entry table indexed by bitwise masking. Stores the score, depth, best move, and a flag (EXACT / LOWERBOUND / UPPERBOUND) for each position. Prevents the engine from re-evaluating positions it has already seen.
 
 ### Evaluation
-- **Material Counting + Piece-Square Tables(PSTs)** — The evaluation is a sum of material values (pawn=100, knight/bishop=300, rook=500, queen=900) and positional bonuses from pre-written **PSTs** encouraging piece mobility.
+- **Tapered Evaluation (PeSTO)** — The evaluation smoothly interpolates between separate middlegame and endgame scores for both material and piece-square bonuses. Each piece carries a `Score{mg, eg}` pair, and a `gamePhase` counter tracks remaining material to blend between the two.
 
-- **Incremental Evaluation** — Have the `makeMove` / `unmakeMove` functions incrementally update the score at each move optimising the evaluation from `O(N)` to `O(1)`. 
+- **PeSTO Piece-Square Tables** — Positional bonuses taken from well-known pre-written PeSTO tables provided in wiki encouraging a much better piece mobility.
+
+- **Incremental Evaluation** — `makeMove` / `unmakeMove` incrementally update both the `mg`/`eg` scores and the `gamePhase` counter at each move, optimising the evaluation from `O(N)` to `O(1)`.
 
 ### Board Representation
 - **Array-Based (int[64])** — A simple flat array where index 0 = A1 and index 63 = H8. Pieces are stored as enum values.
@@ -84,11 +86,11 @@ Perft results on the standard starting position:
 |-------|-----------------|------------|------------------------|
 | 1     |              20 |     0.000s |                      - |
 | 2     |             400 |     0.000s |                      - |
-| 3     |           8,902 |     0.002s |                  5.16M |
-| 4     |         197,281 |     0.029s |                  6.87M |
-| 5     |       4,865,609 |     0.609s |                  7.98M |
-| 6     |     119,060,324 |    14.726s |                  8.08M |
-| 7     |   3,195,901,860 |   409.455s |                  7.81M |
+| 3     |           8,902 |     0.002s |                  3.92M |
+| 4     |         197,281 |     0.027s |                  7.27M |
+| 5     |       4,865,609 |     0.576s |                  8.44M |
+| 6     |     119,060,324 |    14.227s |                  8.37M |
+| 7     |   3,195,901,860 |   401.639s |                  7.96M |
 
 > All node counts match the [expected perft results](https://www.chessprogramming.org/Perft_Results). Benchmarked with `-O3` on a single thread.
 
@@ -156,11 +158,13 @@ A few choices I made and why:
 
 - **Negamax over separate min/max** — With negamax, the same function handles both sides by just negating the returned score. Reducing the code size, and providing same result.
 
+- **Tapered evaluation over flat PSTs** — PeSTO stores separate `mg` and `eg` values *(middlegame and endgame)* for every piece on every square and blends them based on the remaining material (`gamePhase`). This resulted in a massive **200 ELO jump** from the previous iteration.
+
 - **Incremental eval + hash updates** — Both the evaluation and the Zobrist hash are incrementally updated inside `makeMove()` / `unmakeMove()` rather than being recalculated. This keeps the per-node cost constant regardless of how many pieces are on the board.
 
 - **State history stack instead of board copying** — The `StateInfo history[2048]` array acts as an undo stack. Each `makeMove` pushes the current castling rights, en passant square, evaluation, and hash. Each `unmakeMove` pops them — far cheaper than cloning the board.
 
-- **Layered move ordering with explicit score tiers** — Moves are scored using named constants (`TT_OFFSET = 300,000` > `MVV_LVA_OFFSET = 200,000` > `KILLER_OFFSET = 1,000` > history scores). This guarantees TT moves are always searched before captures, captures before killers, and killers before quiet history moves.
+- **Layered move ordering with explicit score tiers** — Moves are scored using named constants (`TT_OFFSET = 300,000` > `MVV_LVA_OFFSET = 200,000` > `KILLER_OFFSET = 1,000` > history scores), leading to search priority order : *TT moves > Captures > Killers > History moves*.
 
 - **History gravity** — The history table uses the gravity formula (`bonus - current * |bonus| / MAX`) from the Chess Programming Wiki to prevent scores from growing without bound. Good moves get rewarded, moves that wasted search time get penalized.
 
@@ -169,8 +173,10 @@ A few choices I made and why:
 
 ## TO-DO
 
-- [ ] Quiescence Search — Continue searching captures at depth 0 to avoid the horizon effect
-- [ ] Bitboard Representation — Replace the int[64] board with 64-bit bitboards for faster move generation
+- [ ] Null Move Pruning — Give the opponent a free turn; if a beta-cutoff still occurs, prune the branch for a large speed boost with minimal code
+- [ ] Principal Variation Search — Search the first move fully, then use a zero-window for the rest to prove they're worse, exploiting strong move ordering
+- [ ] Late Move Reductions — Reduce search depth for moves ordered late in the list; re-search at full depth only if they surprisingly beat alpha
+- [ ] Bitboard Representation — Replace the Piece[64] board with 64-bit bitboards for faster move generation
 
 ## Learning Resources
 
