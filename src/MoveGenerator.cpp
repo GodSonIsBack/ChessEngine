@@ -453,6 +453,75 @@
 
 
 // --------- SEARCH FUNCTIONS ---------
+    int MoveGenerator::quiescenceSearch(Board &board, int alpha, int beta)
+    {
+        // Time Management:
+        if((TM.nodeCount++ & 2047) == 0) 
+            TM.checkTime();
+        if(TM.stopSearch) return 0; // Emergency Break if time ran out
+
+        //Stand Pat Score : (do nothing, no captures)
+        int stand_pat = board.evaluate();
+        
+        //We Assume that doing nothing is the best thing to do:
+        int best_value = stand_pat;
+
+        if(stand_pat >= beta) // beta-cutoff already occurs
+            return stand_pat;
+
+        if(stand_pat > alpha) // alpha-fail
+            alpha = stand_pat;
+        
+        std::vector<Move> pseudoLegal = generateAllMoves(board);
+        std::vector<Move> captures;
+        captures.reserve(32);
+
+        for(auto &move : pseudoLegal)
+        {
+            // Filter out non-captures:
+            if(move.capturedPiece == EMPTY) continue;
+
+            //storing and scoring capture moves
+            move.score = scoreMove(move, board, 0);
+            captures.push_back(move);
+        }
+
+        //sorting capture moves
+        sort(captures.begin(), captures.end(),[](const Move &cap1, const Move &cap2){
+            return cap1.score > cap2.score;
+        });
+
+        for(auto &cap : captures)
+        {
+            Color playingSide = board.getSideToMove();
+            Color attackingSide = (Color)(playingSide ^ 1);
+
+            board.makeMove(cap);
+
+            //if illegal move - unmake and continue;
+            if(board.isSquareAttacked(board.getKingSq(playingSide),attackingSide)){
+                board.unmakeMove(cap); 
+                continue;
+            }
+                
+            int score = -quiescenceSearch(board, -beta, -alpha);
+            board.unmakeMove(cap);
+
+            // Abort to prevent garbage evaluations (if time runs out)
+            if(TM.stopSearch) return 0;
+
+            // Checking and upadting bounds:
+            if(score >= beta)       // Beta-cutoff
+                return score;
+            if(score > best_value)  // Tracking best-score
+                best_value = score;
+            if(score > alpha)       // Alpha-fail
+                alpha = score;
+        }
+
+        return best_value;
+    }
+
     int MoveGenerator::minimax(Board &board, int depth, int ply, int alpha, int beta)
     {
         //Time Management:
@@ -460,12 +529,16 @@
             TM.checkTime();
         if(TM.stopSearch) return 0; // Emergy Break in search if time ran out
 
+        // CRITICAL SAFETY NET: Prevent array out-of-bounds in deep endgames
+        //due to dynamic depths(cuz of time management) minimax might cross MAX_PLY
+        if(ply >= MAX_PLY) return board.evaluate();
+
         //only check if ply > 0 : ensures root node always makes a move
         if (ply > 0 && (board.isRepetition() || board.getHalfMoveClock() >= 100)) {
             return 0; // Return exactly 0 (Draw score)
         }
 
-        if(depth == 0) return board.evaluate();
+        if(depth == 0) return quiescenceSearch(board, alpha, beta);
 
         int originalAlpha = alpha; //save original alpha for later
         int ttScore = 0;
@@ -523,6 +596,8 @@
             // to make it relative to our playing side just negate it
 
             board.unmakeMove(move);
+
+            if(TM.stopSearch) return 0;
 
             if(score > bestScore)
             {
@@ -658,12 +733,12 @@
     {
         switch(PieceType)
         {
-            case W_PAWN:   case B_PAWN:   return PAWN;
-            case W_KNIGHT: case B_KNIGHT: return KNIGHT;
-            case W_BISHOP: case B_BISHOP: return BISHOP;
-            case W_ROOK:   case B_ROOK:   return ROOK;
-            case W_QUEEN:  case B_QUEEN:  return QUEEN;
-            default: return 0;  
+            case W_PAWN:   case B_PAWN:   return 100;
+            case W_KNIGHT: case B_KNIGHT: return 300;
+            case W_BISHOP: case B_BISHOP: return 300;
+            case W_ROOK:   case B_ROOK:   return 500;
+            case W_QUEEN:  case B_QUEEN:  return 900;
+            default: return 0;
         }
     }
 
@@ -735,7 +810,7 @@
         // If it's same as first killer Move, don't add:
         if(move.from == killer.from && move.to == killer.to && 
             move.promotionPiece == killer.promotionPiece)
-        return;
+            return;
 
         KillerMoves[1][ply] = KillerMoves[0][ply];
         KillerMoves[0][ply] = move;

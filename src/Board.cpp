@@ -7,13 +7,14 @@
 #include <cctype>
 
 Board::Board(): 
-    currentEval(0),
+    currentEval({0,0}),
     sideToMove(WHITE),
     castLingRight(0),
     enPassantSquare(NO_SQ),
     histPtr(0),
     currentHash(0)
     {
+        initTables();
         loadFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
 
@@ -58,7 +59,7 @@ Board::Board():
         {
             piece = EMPTY;
         }
-
+        
         // loading pieces onto the board:
         std::stringstream rowStream(pos.piecePlacement);
         std::string row;
@@ -107,6 +108,10 @@ Board::Board():
             }
         }
 
+        histPtr = 0; 
+        halfMoveClock = pos.halfMoveClock;
+        fullMoveNumber = pos.fullMoveCounter;
+
         //parse enPassantSquare
         if (pos.enPassantSquare == "-") 
         {
@@ -120,11 +125,16 @@ Board::Board():
         }
 
         //Initialize CurrentEval
-        currentEval=0;
-        for(int sq=0;sq < 64;sq++)
+        currentEval = {0,0};
+        gamePhase = 0;
+        for(int sq = 0; sq < 64; sq++)
         {
             Piece pieceType = board[sq];
-            currentEval += getValueAndPST(pieceType, (Square) sq);
+            if(pieceType != EMPTY)
+            {
+                currentEval += getPieceScore(pieceType, (Square) sq);
+                gamePhase += getPiecePhase(pieceType);
+            }
         }
 
         currentHash = Zobrist::generateHash(*this);
@@ -140,6 +150,7 @@ Board::Board():
             history[histPtr].castLingRight = castLingRight;
             history[histPtr].enPassantSquare = enPassantSquare;
             history[histPtr].currentEval = currentEval;
+            history[histPtr].gamePhase = gamePhase;
             history[histPtr].currentHash = currentHash;
             history[histPtr].halfMoveClock = halfMoveClock;
             history[histPtr].fullMoveNumber = fullMoveNumber;
@@ -159,7 +170,9 @@ Board::Board():
                 if (move.isEnPassant) capSq = (Square)((sideToMove == WHITE) ? to - 8 : to + 8);
 
                 //Updating Score
-                currentEval -= getValueAndPST(move.capturedPiece, capSq);
+                currentEval -= getPieceScore(move.capturedPiece, capSq);
+                gamePhase -= getPiecePhase(move.capturedPiece);
+
                 //Updating Hash
                 currentHash ^= Zobrist::pieceKeys[move.capturedPiece - 1][capSq];
             }
@@ -192,8 +205,8 @@ Board::Board():
                                 board[F1] = board[H1]; board[H1] = EMPTY; 
                                 
                                 //Updating Score
-                                currentEval -= getValueAndPST(W_ROOK, H1); 
-                                currentEval += getValueAndPST(W_ROOK, F1);
+                                currentEval -= getPieceScore(W_ROOK, H1); 
+                                currentEval += getPieceScore(W_ROOK, F1);
 
                                 //Updating Hash
                                 currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][H1];
@@ -204,14 +217,15 @@ Board::Board():
                                 board[D1] = board[A1]; board[A1] = EMPTY; 
 
                                 //Updating Score
-                                currentEval -= getValueAndPST(W_ROOK, A1); 
-                                currentEval += getValueAndPST(W_ROOK, D1);
+                                currentEval -= getPieceScore(W_ROOK, A1); 
+                                currentEval += getPieceScore(W_ROOK, D1);
 
                                 //Updating Hash
                                 currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][A1];
                                 currentHash ^= Zobrist::pieceKeys[W_ROOK - 1][D1];
 
                                 break;
+                            default : break;
                         }
                         break;
                     case B_KING:
@@ -221,8 +235,8 @@ Board::Board():
                                 board[F8] = board[H8]; board[H8] = EMPTY; 
 
                                 //Updating Score
-                                currentEval -= getValueAndPST(B_ROOK, H8);
-                                currentEval += getValueAndPST(B_ROOK, F8);
+                                currentEval -= getPieceScore(B_ROOK, H8);
+                                currentEval += getPieceScore(B_ROOK, F8);
 
                                 //Updating Hash
                                 currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][H8];
@@ -233,16 +247,18 @@ Board::Board():
                                 board[D8] = board[A8]; board[A8] = EMPTY; 
 
                                 //Updating Score
-                                currentEval -= getValueAndPST(B_ROOK, A8);
-                                currentEval += getValueAndPST(B_ROOK, D8);
+                                currentEval -= getPieceScore(B_ROOK, A8);
+                                currentEval += getPieceScore(B_ROOK, D8);
 
                                 //Updating Hash
                                 currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][A8];
                                 currentHash ^= Zobrist::pieceKeys[B_ROOK - 1][D8];
 
                                 break;
+                            default : break;
                         }
                         break;
+					default : break;
                 } 
             }
 
@@ -280,8 +296,8 @@ Board::Board():
             if(movedPiece == B_KING) King_B = to;
 
             //Updating Score
-            currentEval -= getValueAndPST(movedPiece, from);
-            currentEval += getValueAndPST(movedPiece, to);
+            currentEval -= getPieceScore(movedPiece, from);
+            currentEval += getPieceScore(movedPiece, to);
 
             //Updating Hash
             currentHash ^= Zobrist::pieceKeys[movedPiece - 1][from];
@@ -293,8 +309,9 @@ Board::Board():
                 board[to] = move.promotionPiece;
 
                 //Updating Score
-                currentEval -= getValueAndPST(movedPiece, to); //remove the pawn
-                currentEval += getValueAndPST(move.promotionPiece, to); //add the promoted piece
+                currentEval -= getPieceScore(movedPiece, to); //remove the pawn
+                currentEval += getPieceScore(move.promotionPiece, to); //add the promoted piece
+                gamePhase += getPiecePhase(move.promotionPiece);
 
                 //Updating Hash
                 currentHash ^= Zobrist::pieceKeys[movedPiece - 1][to];
@@ -319,6 +336,7 @@ Board::Board():
             castLingRight = history[histPtr].castLingRight;
             enPassantSquare = history[histPtr].enPassantSquare;
             currentEval = history[histPtr].currentEval;
+            gamePhase = history[histPtr].gamePhase;
             currentHash = history[histPtr].currentHash;
             halfMoveClock = history[histPtr].halfMoveClock;
             fullMoveNumber = history[histPtr].fullMoveNumber;
@@ -339,6 +357,7 @@ Board::Board():
                         board[A8] = board[D8]; board[D8] = EMPTY; break; 
                     case G8:
                         board[H8] = board[F8]; board[F8] = EMPTY; break; 
+                    default : break;
                 }
             }
 
@@ -481,7 +500,13 @@ Board::Board():
 
     int Board::evaluate()
     {
-        return (sideToMove == WHITE) ? currentEval : -currentEval;
+        int phase = gamePhase;
+        if(phase > 24) phase = 24;
+        
+        //Interpolation:
+        int eval = (currentEval.mg * phase + currentEval.eg * (24 - phase))/24;
+
+        return (sideToMove == WHITE) ? eval : -eval;
     }
 
     bool Board::isRepetition()
@@ -501,40 +526,19 @@ Board::Board():
     }
     
 // ----------GETTERS----------
-    Piece Board::getPiece(Square s)
-    {
-        return board[s];
-    }
+    Piece Board::getPiece(Square s) { return board[s]; }
 
-    Color Board::getSideToMove()
-    {
-        return sideToMove;
-    }
+    Color Board::getSideToMove() { return sideToMove; }
 
-    Square Board::getEnPassantSquare()
-    {
-        return enPassantSquare;
-    }
+    Square Board::getEnPassantSquare() { return enPassantSquare; }
 
-    int Board::getCastLingRight()
-    {
-        return castLingRight;
-    }
+    int Board::getCastLingRight() { return castLingRight; }
 
-    int Board::getHalfMoveClock()
-    {
-        return halfMoveClock;
-    }
+    int Board::getHalfMoveClock() { return halfMoveClock; }
 
-    Square Board::getKingSq(Color playingSide)
-    {
-        return (playingSide == WHITE) ? King_W : King_B;
-    }
+    Square Board::getKingSq(Color playingSide) { return (playingSide == WHITE) ? King_W : King_B; }
 
-    unsigned long long Board::getCurrentHash()
-    {
-        return currentHash;
-    }
+    unsigned long long Board::getCurrentHash() { return currentHash; }
 
 // ----------HELPER FUNCTIONS----------
     Piece Board::charToPiece(char c)
@@ -563,33 +567,34 @@ Board::Board():
         return pieceChars[p];
     }
 
-    int Board::getValueAndPST(Piece pieceType, Square sq)
+    Score Board::getPieceScore(Piece pieceType, Square sq)
     {
-        int val = 0;
-        int pst = 0;
-        
-        switch(pieceType)
+        return PST[pieceType][sq];
+    }
+
+    int Board::getPiecePhase(Piece pieceType)
+    {
+        return gamephaseInc[pieceType];
+    }
+
+	Score Board::PST[13][64];
+    bool Board::tablesInitialized = false;
+	
+    void Board::initTables()
+    {
+        if(tablesInitialized) return;
+
+        for(int p = 0; p < 6; p++)
         {
-            case W_PAWN: val = PAWN; pst = PawnTable[sq]; break;
-            case B_PAWN: val = -PAWN; pst = -PawnTable[sq ^ 56]; break;
+            for(int sq = 0; sq < 64; sq++)
+            {
+                int whitePiece = p + 1;
+                int blackPiece = p + 7;
 
-            case W_BISHOP: val = BISHOP; pst = BishopTable[sq]; break;
-            case B_BISHOP: val = -BISHOP; pst = -BishopTable[sq ^ 56]; break;
-
-            case W_ROOK: val = ROOK; pst = RookTable[sq]; break;
-            case B_ROOK: val = -ROOK; pst = -RookTable[sq ^ 56]; break;
-
-            case W_QUEEN: val = QUEEN; pst = QueenTable[sq]; break;
-            case B_QUEEN: val = -QUEEN; pst = -QueenTable[sq ^ 56]; break;
-
-            case W_KNIGHT: val = KNIGHT; pst = KnightTable[sq]; break;
-            case B_KNIGHT: val = -KNIGHT; pst = -KnightTable[sq ^ 56]; break;
-
-            case W_KING: pst = KingTable[sq]; break;
-            case B_KING: pst = -KingTable[sq ^ 56]; break;
-
-            default: break;
+                PST[whitePiece][sq] = PieceValues[p] + PestoTables[p][sq];
+                PST[blackPiece][sq] = -(PieceValues[p] + PestoTables[p][sq ^ 56]);
+            }
         }
 
-        return val + pst;
+        tablesInitialized = true;
     }

@@ -8,9 +8,9 @@
 
 struct TimeManager
 {
-    long long nodeCount;
-    bool stopSearch;
-    int timeLimit;
+    long long nodeCount = 0;
+    bool stopSearch = false;
+    int timeLimit = 0;
     std::chrono::time_point<std::chrono::system_clock> startTime;
 
     void startTimer(int limit)
@@ -37,7 +37,7 @@ class MoveGenerator
 {
     private:
         //------CONSTANTS AND TABLES--------
-            static const int MAX_PLY = 125;
+            static const int MAX_PLY = 256;
             static const int TT_OFFSET = 300000;
             static const int MVV_LVA_OFFSET = 200000;
             static const int KILLER_OFFSET = 1000;
@@ -80,6 +80,7 @@ class MoveGenerator
         void perftBenchmark(int maxDepth, Board &board);
 
         // Search:
+        int quiescenceSearch(Board &board,int alpha, int beta);
         int minimax(Board &board, int depth, int ply, int alpha, int beta);
         Move searchRoot(Board &board, int depth, int ply, std::vector<Move> &legalMoves, Move prevBest);
         Move findBestMove(Board &board, int targetDepth, std::vector<Move>& legalMoves);

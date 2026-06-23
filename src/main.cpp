@@ -102,7 +102,10 @@ void runTerminal() {
         } else {
             std::cout << "Engine is thinking...\n";
 
-            Move aiMove = generator.findBestMove(board, 7, legalMoves);
+            // give the terminal mode "infinite" time to reach Depth 7
+            generator.enableTimer(2000000000);
+
+            Move aiMove = generator.findBestMove(board, 8, legalMoves);
 
             std::cout << "Engine plays: " 
                       << SqtoString(aiMove.from) 
@@ -195,7 +198,7 @@ void runUCI() {
             }
 
             int timeLimit = -1;
-            if(movetime > 0) timeLimit = movetime;
+            if(movetime > 0) timeLimit = movetime - 50;
             else if(wtime > 0 || btime > 0)
             {
                 int timeRemaining = (board.getSideToMove() == WHITE) ? wtime : btime;

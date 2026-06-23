@@ -1,5 +1,4 @@
 #pragma once
-#include <vector>
 #include "Definitions.hpp"
 #include "Move.hpp"
 #include <string>
@@ -8,7 +7,8 @@ struct StateInfo
 {
     int castLingRight;
     Square enPassantSquare;
-    int currentEval;
+    Score currentEval;
+    int gamePhase;
     unsigned long long currentHash;
     int halfMoveClock;
     int fullMoveNumber;
@@ -41,13 +41,21 @@ class Board
             Square King_B;
         
         // Evaluation and Search:
-            int currentEval;
+            Score currentEval; // contaings both mid and end game eval
+            int gamePhase; // Tracks remaining material phase (used in interpolation)
             unsigned long long currentHash;
+        
+        //Tapered Evaluation:
+            static Score PST[13][64]; // Master Table
+            static bool tablesInitialized;
+            void initTables();
 
         // helper functions:
             Piece charToPiece(char c);
             char pieceToChar(Piece p);
-            int getValueAndPST(Piece pieceType, Square sq);
+            
+            Score getPieceScore(Piece pieceType, Square sq);
+            int getPiecePhase(Piece pieceType);
 
     public:
 
